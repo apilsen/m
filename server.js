@@ -5073,43 +5073,58 @@ async function handleChannelStart(chatId, userId, firstName, msg) {
         }
     });
 
-    // Обработчик команды /admin
-    bot.onText(/\/admin/, async (msg) => {
-        try {
-            const chatId = msg.chat.id;
-            const userId = msg.from.id;
+   // Команда для админ панели
+bot.onText(/\/admin/, async (msg) => {
+    try {
+        const userId = msg.from.id;
+        const chatId = msg.chat.id;
+        
+        console.log(`🔧 Запрос админ панели от пользователя ${userId}`);
 
-            console.log(`🔧 Команда /admin от пользователя ${userId}`);
-
-            const admin = db.admins.find(a => a.user_id == userId);
-            if (!admin) {
-                await bot.sendMessage(chatId, 
-                    '❌ У вас нет прав доступа к админ панели.'
-                );
-                return;
-            }
-
-            const adminUrl = `${process.env.APP_URL || 'http://localhost:3000'}/admin.html?userId=${userId}`;
-            
-            const keyboard = {
-                inline_keyboard: [[
-                    {
-                        text: "🔧 Открыть Админ Панель",
-                        url: adminUrl
-                    }
-                ]]
-            };
-            
+        // Проверяем права администратора
+        const admin = db.admins.find(a => a.user_id == userId);
+        if (!admin) {
             await bot.sendMessage(chatId, 
-                `🔧 *Панель администратора*\n\nНажмите кнопку ниже чтобы открыть админ панель:`, {
-                parse_mode: 'Markdown',
-                reply_markup: keyboard
-            });
-
-        } catch (error) {
-            console.error('❌ Ошибка обработки /admin:', error);
+                '❌ У вас нет прав доступа к админ панели.\n\n' +
+                'Обратитесь к главному администратору для получения доступа.'
+            );
+            return;
         }
-    });
+
+        // Создаем ссылку на админ панель
+        const adminUrl = `${process.env.APP_URL || 'http://localhost:3000'}/admin?userId=${userId}&admin=true`;
+        
+        const keyboard = {
+            inline_keyboard: [[
+                {
+                    text: "🔧 Открыть Админ Панель",
+                    web_app: { url: adminUrl }
+                }
+            ], [
+                {
+                    text: "📊 Статистика",
+                    callback_data: 'admin_stats'
+                },
+                {
+                    text: "👥 Пользователи", 
+                    callback_data: 'admin_users'
+                }
+            ]]
+        };
+
+        await bot.sendMessage(chatId, 
+            `🔧 *Панель администратора*\n\n*Добро пожаловать, ${admin.username || 'Администратор'}!*\n\n` +
+            `Выберите действие или откройте полную админ панель:`, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard
+        });
+
+        console.log(`✅ Админ панель предложена пользователю ${userId}`);
+
+    } catch (error) {
+        console.error('❌ Ошибка команды /admin:', error);
+    }
+});
 
     // Обработчик команды /help
     bot.onText(/\/help/, async (msg) => {
@@ -5149,6 +5164,82 @@ async function handleChannelStart(chatId, userId, firstName, msg) {
         }
     });
 
+// Обработчик callback кнопок админки
+bot.on('callback_query', async (callbackQuery) => {
+    try {
+        const userId = callbackQuery.from.id;
+        const data = callbackQuery.data;
+        const messageId = callbackQuery.message.message_id;
+        
+        // Проверяем права
+        const admin = db.admins.find(a => a.user_id == userId);
+        if (!admin) {
+            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Нет прав доступа' });
+            return;
+        }
+
+        switch(data) {
+            case 'admin_stats':
+                await showAdminStats(callbackQuery);
+                break;
+                
+            case 'admin_users':
+                await showUsersStats(callbackQuery);
+                break;
+                
+            case 'admin_moderation':
+                await showModerationQueue(callbackQuery);
+                break;
+        }
+
+    } catch (error) {
+        console.error('❌ Ошибка callback админки:', error);
+    }
+});
+
+// Функция показа статистики
+async function showAdminStats(callbackQuery) {
+    const stats = {
+        totalUsers: db.users.length,
+        registeredUsers: db.users.filter(u => u.is_registered).length,
+        activeToday: db.users.filter(u => {
+            const today = new Date();
+            const lastActive = new Date(u.last_active);
+            return lastActive.toDateString() === today.toDateString();
+        }).length,
+        totalSparks: db.users.reduce((sum, user) => sum + user.sparks, 0).toFixed(1),
+        pendingWorks: db.user_works.filter(w => w.status === 'pending').length,
+        pendingReviews: db.post_reviews.filter(r => r.status === 'pending').length
+    };
+
+    const statsText = `📊 *Статистика системы*\n\n` +
+        `👥 Пользователи: ${stats.totalUsers}\n` +
+        `✅ Зарегистрировано: ${stats.registeredUsers}\n` +
+        `🟢 Активных сегодня: ${stats.activeToday}\n` +
+        `💰 Искр в системе: ${stats.totalSparks}✨\n` +
+        `⏳ Ожидают модерации:\n` +
+        `  • Работ: ${stats.pendingWorks}\n` +
+        `  • Отзывов: ${stats.pendingReviews}`;
+
+    await bot.editMessageText(statsText, {
+        chat_id: callbackQuery.message.chat.id,
+        message_id: callbackQuery.message.message_id,
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[
+                { text: "🔄 Обновить", callback_data: 'admin_stats' },
+                { text: "📋 Подробнее", web_app: { 
+                    url: `${process.env.APP_URL}/admin?userId=${callbackQuery.from.id}&section=stats` 
+                }}
+            ], [
+                { text: "🔙 Назад", callback_data: 'admin_back' }
+            ]]
+        }
+    });
+
+    await bot.answerCallbackQuery(callbackQuery.id);
+}
+    
 // ОБРАБОТЧИК ДЛЯ КНОПКИ "ОТКРЫТЬ ПРИЛОЖЕНИЕ" ИЗ КАНАЛА
 bot.onText(/\/app/, async (msg) => {
     try {
