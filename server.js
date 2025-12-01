@@ -1,4 +1,4 @@
-server.js - import express from 'express';
+const express = require('express');
 import TelegramBot from 'node-telegram-bot-api';
 import cors from 'cors';
 import bodyParser from 'body-parser';
