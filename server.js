@@ -248,7 +248,7 @@ let db = {
             name: 'Художники',
             description: 'Творцы изобразительного искусства',
             icon: '🎨',
-            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role'],
+            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role', 'private_videos'], // ✅ Добавлено
             is_active: true,
             created_at: new Date().toISOString()
         },
@@ -257,7 +257,7 @@ let db = {
             name: 'Стилисты',
             description: 'Мастера создания образов',
             icon: '👗',
-            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role'],
+            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role', 'private_videos'], // ✅ Добавлено
             is_active: true,
             created_at: new Date().toISOString()
         },
@@ -266,7 +266,7 @@ let db = {
             name: 'Мастера',
             description: 'Ремесленники прикладного искусства',
             icon: '🧵',
-            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role'],
+            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role', 'private_videos'], // ✅ Добавлено
             is_active: true,
             created_at: new Date().toISOString()
         },
@@ -275,7 +275,7 @@ let db = {
             name: 'Историки',
             description: 'Знатоки истории искусств',
             icon: '🏛️',
-            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role'],
+            available_buttons: ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role', 'private_videos'], // ✅ Добавлено
             is_active: true,
             created_at: new Date().toISOString()
         }
@@ -2465,7 +2465,7 @@ app.post('/api/users/change-role', (req, res) => {
     });
 });
 
-// ✅ ПРАВИЛЬНАЯ РЕГИСТРАЦИЯ ПОЛЬЗОВАТЕЛЯ
+// server.js - добавим функцию в регистрацию пользователя
 app.post('/api/users/register', (req, res) => {
     try {
         const { userId, firstName, username, roleId, characterId } = req.body;
@@ -2492,6 +2492,12 @@ app.post('/api/users/register', (req, res) => {
         }
         
         const isNewUser = !user;
+        const availableButtons = role.available_buttons || [];
+        
+        // ✅ ВСЕГДА добавляем кнопку приватных материалов
+        if (!availableButtons.includes('private_videos')) {
+            availableButtons.push('private_videos');
+        }
         
         if (!user) {
             // СОЗДАЕМ НОВОГО РЕАЛЬНОГО ПОЛЬЗОВАТЕЛЯ
@@ -2506,7 +2512,7 @@ app.post('/api/users/register', (req, res) => {
                 class: role.name,
                 character_id: characterId || 1,
                 character_name: character ? character.name : 'Лука Цветной',
-                available_buttons: role.available_buttons || ['quiz', 'marathon', 'works', 'activities', 'posts', 'shop', 'invite', 'interactives', 'change_role'],
+                available_buttons: availableButtons, // ✅ Используем обновленный список
                 registration_date: new Date().toISOString(),
                 last_active: new Date().toISOString()
             };
@@ -2524,7 +2530,7 @@ app.post('/api/users/register', (req, res) => {
             user.character_id = characterId || user.character_id;
             user.character_name = character ? character.name : user.character_name;
             user.is_registered = true;
-            user.available_buttons = role.available_buttons;
+            user.available_buttons = availableButtons; // ✅ Обновляем список кнопок
             user.last_active = new Date().toISOString();
         }
         
@@ -2547,7 +2553,8 @@ app.post('/api/users/register', (req, res) => {
             id: user.user_id,
             name: user.tg_first_name,
             role: user.class,
-            sparks: user.sparks
+            sparks: user.sparks,
+            available_buttons: user.available_buttons // ✅ Логируем кнопки
         });
         
         res.json({ 
@@ -2566,7 +2573,6 @@ app.post('/api/users/register', (req, res) => {
         });
     }
 });
-
 // ✅ ПРАВИЛЬНОЕ ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЯ
 app.get('/api/users/:userId', (req, res) => {
     try {
@@ -2655,6 +2661,44 @@ app.get('/api/webapp/quizzes', (req, res) => {
     });
     
     res.json(quizzesWithStatus);
+});
+
+// server.js - добавим новый endpoint
+app.post('/api/admin/update-users-buttons', requireAdmin, (req, res) => {
+    try {
+        const { addButton = 'private_videos' } = req.body;
+        
+        console.log(`🔄 Обновление кнопок пользователей, добавляем: ${addButton}`);
+        
+        let updatedCount = 0;
+        
+        db.users.forEach(user => {
+            if (user.is_registered) {
+                const currentButtons = user.available_buttons || [];
+                
+                if (!currentButtons.includes(addButton)) {
+                    currentButtons.push(addButton);
+                    user.available_buttons = currentButtons;
+                    updatedCount++;
+                    
+                    console.log(`✅ Добавлена кнопка для пользователя: ${user.tg_first_name} (${user.user_id})`);
+                }
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: `Добавлена кнопка "${addButton}" для ${updatedCount} пользователей`,
+            updated_count: updatedCount
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления кнопок:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка обновления кнопок пользователей'
+        });
+    }
 });
 
 // ✅ ИСПРАВЛЕННЫЙ ENDPOINT ДЛЯ ОТПРАВКИ КВИЗА
@@ -5073,26 +5117,61 @@ async function handleChannelStart(chatId, userId, firstName, msg) {
         }
     });
 
-   // Команда для админ панели
+// server.js - в функции setupBotHandlers() обновите обработчик /admin
 bot.onText(/\/admin/, async (msg) => {
     try {
         const userId = msg.from.id;
         const chatId = msg.chat.id;
+        const firstName = msg.from.first_name || 'Пользователь';
         
-        console.log(`🔧 Запрос админ панели от пользователя ${userId}`);
+        console.log(`🔧 Запрос админ панели от пользователя ${userId} (${firstName})`);
 
-        // Проверяем права администратора
-        const admin = db.admins.find(a => a.user_id == userId);
+        // Проверяем, есть ли пользователь в системе
+        let user = db.users.find(u => u.user_id == userId);
+        if (!user) {
+            // Создаем временного пользователя
+            user = {
+                user_id: userId,
+                tg_first_name: firstName,
+                tg_username: msg.from.username || `user_${userId}`,
+                sparks: 0,
+                level: 'Ученик',
+                is_registered: false
+            };
+        }
+
+        // Автоматически добавляем в админы если это тестовые ID
+        const testAdminIds = [898508164, 79156202620, 781959267];
+        let admin = db.admins.find(a => a.user_id == userId);
+        
+        if (testAdminIds.includes(userId) && !admin) {
+            admin = {
+                id: Date.now(),
+                user_id: userId,
+                username: user.tg_username,
+                role: 'admin',
+                created_at: new Date().toISOString()
+            };
+            db.admins.push(admin);
+            console.log(`✅ Пользователь ${userId} автоматически добавлен как админ`);
+        }
+
+        // Если не админ - предлагаем связаться
         if (!admin) {
             await bot.sendMessage(chatId, 
-                '❌ У вас нет прав доступа к админ панели.\n\n' +
-                'Обратитесь к главному администратору для получения доступа.'
-            );
+                `👋 Привет, ${firstName}!\n\n` +
+                `🔒 У вас нет доступа к админ панели.\n\n` +
+                `📧 Для получения доступа обратитесь к главному администратору.\n\n` +
+                `💡 Вы можете использовать другие команды:\n` +
+                `/start - Открыть приложение\n` +
+                `/help - Помощь по боту`, {
+                parse_mode: 'Markdown'
+            });
             return;
         }
 
         // Создаем ссылку на админ панель
-        const adminUrl = `${process.env.APP_URL || 'http://localhost:3000'}/admin?userId=${userId}&admin=true`;
+        const adminUrl = `${process.env.APP_URL || 'http://localhost:3000'}/admin?userId=${userId}`;
         
         const keyboard = {
             inline_keyboard: [[
@@ -5113,7 +5192,9 @@ bot.onText(/\/admin/, async (msg) => {
         };
 
         await bot.sendMessage(chatId, 
-            `🔧 *Панель администратора*\n\n*Добро пожаловать, ${admin.username || 'Администратор'}!*\n\n` +
+            `🔧 *Панель администратора*\n\n` +
+            `*Добро пожаловать, ${admin.username || firstName}!*\n\n` +
+            `*Ваши права:* ${admin.role}\n\n` +
             `Выберите действие или откройте полную админ панель:`, {
             parse_mode: 'Markdown',
             reply_markup: keyboard
