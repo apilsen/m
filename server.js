@@ -4096,6 +4096,44 @@ app.post('/api/webapp/interactives/:interactiveId/submit', (req, res) => {
     });
 });
 
+// GET /api/webapp/shop/items/:itemId/embed
+app.get('/api/webapp/shop/items/:itemId/embed', (req, res) => {
+    try {
+        const itemId = parseInt(req.params.itemId);
+        const item = db.shop_items.find(i => i.id === itemId && i.is_active);
+        
+        if (!item) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Товар не найден' 
+            });
+        }
+        
+        if (item.type !== 'embed') {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Этот товар не является embed-контентом' 
+            });
+        }
+        
+        // Возвращаем embed_html для предпросмотра
+        res.json({
+            success: true,
+            embed_html: item.embed_html || '',
+            title: item.title,
+            description: item.description,
+            is_preview: true // Флаг что это предпросмотр
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения embed:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Ошибка сервера' 
+        });
+    }
+});
+
 // Admin API
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
     const stats = {
