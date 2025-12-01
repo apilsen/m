@@ -693,6 +693,82 @@
             font-size: 14px;
             line-height: 1.4;
         }
+
+/* Стили для реферальной системы */
+.referral-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.referral-stat-card {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.referral-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.referral-stat-number {
+    font-size: 32px;
+    font-weight: bold;
+    color: #667eea;
+    margin-bottom: 8px;
+}
+
+.referral-stat-label {
+    font-size: 14px;
+    color: #718096;
+}
+
+.referral-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin: 20px 0;
+}
+
+.referral-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.referral-item:last-child {
+    border-bottom: none;
+}
+
+.referral-user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.referral-user-name {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.referral-user-date {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 4px;
+}
+
+.referral-bonus {
+    color: #48bb78;
+    font-weight: bold;
+    font-size: 16px;
+}
         
         /* Стили для медиа контента в покупках */
         .media-preview {
@@ -1856,29 +1932,62 @@
         </div>
     </div>
         
-        <!-- Экран приглашений -->
-        <div id="inviteScreen" class="screen">
-            <div class="card">
-                <button class="btn back-btn" onclick="showScreen('mainScreen')">← Назад</button>
-                <h2 style="text-align: center; margin-bottom: 24px;">👥 Пригласить друга</h2>
-                
-                <div class="info">
-                    <h3 style="margin-bottom: 12px;">🎁 Пригласите друга и получите +10✨</h3>
-                    <p style="margin-bottom: 16px; line-height: 1.5;">
-                        Поделитесь ссылкой с другом. Когда он зарегистрируется, вы оба получите бонус!
-                    </p>
-                    
-                    <div style="background: white; padding: 16px; border-radius: 12px; margin: 16px 0; word-break: break-all; font-family: monospace; border: 1px solid #e2e8f0;">
-                        https://t.me/your_bot?start=ref_<span id="inviteUserId">12345</span>
-                    </div>
-                    
-                    <button class="btn" onclick="copyInviteLink()">
-                        📋 Скопировать ссылку
-                    </button>
-                </div>
+<!-- Экран приглашений -->
+<div id="inviteScreen" class="screen">
+    <div class="card">
+        <button class="btn back-btn" onclick="showScreen('mainScreen')">← Назад</button>
+        <h2 style="text-align: center; margin-bottom: 24px;">👥 Пригласить друга</h2>
+        
+        <div class="info" style="margin-bottom: 20px;">
+            <h3 style="margin-bottom: 12px; color: #48bb78;">🎁 Пригласите друга и получите +10✨!</h3>
+            <p style="margin-bottom: 16px; line-height: 1.5;">
+                Поделитесь ссылкой с другом. Когда он присоединится к каналу и зарегистрируется, вы оба получите бонус!
+            </p>
+        </div>
+        
+        <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+            <h4 style="margin-bottom: 12px; color: #4a5568;">📋 Инструкция:</h4>
+            <ol style="color: #718096; padding-left: 20px; line-height: 1.6;">
+                <li style="margin-bottom: 8px;">Нажмите "Создать ссылку"</li>
+                <li style="margin-bottom: 8px;">Скопируйте уникальную ссылку</li>
+                <li style="margin-bottom: 8px;">Отправьте её другу в Telegram</li>
+                <li>Друг должен присоединиться к каналу и зарегистрироваться</li>
+            </ol>
+        </div>
+        
+        <div style="background: white; padding: 16px; border-radius: 12px; margin: 16px 0; word-break: break-all; border: 2px solid #e2e8f0;">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">🔗 Ссылка для приглашения:</div>
+            <div id="inviteLink" style="font-family: monospace; font-size: 14px; color: #2d3748; padding: 12px; background: #f7fafc; border-radius: 8px; min-height: 60px; display: flex; align-items: center; justify-content: center;">
+                Нажмите "Создать ссылку"
             </div>
         </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 20px;">
+            <button class="btn" onclick="generateInviteLink()" style="flex: 1;">
+                🔗 Создать ссылку
+            </button>
+            <button class="btn btn-secondary" onclick="copyInviteLink()" style="flex: 1;" id="copyBtn" disabled>
+                📋 Копировать
+            </button>
+        </div>
+        
+        <button class="btn btn-info" onclick="showReferralStats()" style="margin-top: 16px; width: 100%;">
+            📊 Статистика приглашений
+        </button>
     </div>
+</div>
+
+<!-- Экран статистики приглашений -->
+<div id="referralStatsScreen" class="screen">
+    <div class="card">
+        <button class="btn back-btn" onclick="showScreen('inviteScreen')">← Назад</button>
+        <h2 style="text-align: center; margin-bottom: 24px;">📊 Статистика приглашений</h2>
+        
+        <div id="referralStatsContent" class="loading">
+            Загрузка статистики...
+        </div>
+    </div>
+</div>
 
         <!-- Экран детального просмотра покупки -->
         <div id="purchaseDetailScreen" class="screen">
