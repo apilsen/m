@@ -6704,13 +6704,44 @@ function updateUserDisplay() {
     }
 }
 
-function copyInviteLink() {
-    const link = `https://t.me/your_bot?start=ref_${currentUserId}`;
-    navigator.clipboard.writeText(link).then(() => {
-        showMessage('✅ Ссылка скопирована в буфер обмена!', 'success');
-    }).catch(() => {
-        showMessage('❌ Не удалось скопировать ссылку', 'error');
-    });
+// ==================== ОБНОВЛЕННАЯ ФУНКЦИЯ КОПИРОВАНИЯ ====================
+async function copyInviteLink() {
+    try {
+        // Проверяем, есть ли уже сгенерированная ссылка
+        if (!window.currentInviteLink) {
+            // Если нет - сначала генерируем
+            await generateInviteLink();
+        }
+        
+        if (window.currentInviteLink) {
+            await navigator.clipboard.writeText(window.currentInviteLink);
+            showMessage('✅ Ссылка скопирована в буфер обмена!', 'success');
+            
+            // Показываем инструкцию
+            setTimeout(() => {
+                showMessage('📋 Отправьте эту ссылку другу в Telegram', 'info');
+            }, 1000);
+        } else {
+            showMessage('❌ Не удалось создать ссылку', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка копирования:', error);
+        
+        // Fallback для старых браузеров
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = window.currentInviteLink;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            showMessage('✅ Ссылка скопирована!', 'success');
+        } catch (fallbackError) {
+            showMessage('❌ Не удалось скопировать ссылку', 'error');
+        }
+    }
 }
 
 // ==================== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ====================
