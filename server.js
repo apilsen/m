@@ -2428,9 +2428,11 @@ app.post('/api/admin/parse-telegram-url', requireAdmin, async (req, res) => {
     }
 });
 
-// НОВЫЙ МЕТОД ДЛЯ СМЕНЫ РОЛИ
+// ✅ ИСПРАВЛЕННЫЙ ЭНДПОИНТ ДЛЯ СМЕНЫ РОЛИ
 app.post('/api/users/change-role', (req, res) => {
     const { userId, roleId, characterId } = req.body;
+    
+    console.log('🔄 Смена роли:', { userId, roleId, characterId });
     
     if (!userId || !roleId) {
         return res.status(400).json({ error: 'User ID and role are required' });
@@ -2451,14 +2453,36 @@ app.post('/api/users/change-role', (req, res) => {
     // Сохраняем старую роль для лога
     const oldRole = user.class;
     
+    // ✅ ИСПРАВЛЕНИЕ: Получаем кнопки из роли и персонажа
+    const roleButtons = role.available_buttons || [];
+    const characterButtons = character?.available_buttons || [];
+    
+    // Объединяем кнопки из роли и персонажа
+    const availableButtons = [...new Set([...roleButtons, ...characterButtons])];
+    
+    // ✅ ВСЕГДА добавляем базовые кнопки
+    const mandatoryButtons = ['profile', 'activities'];
+    mandatoryButtons.forEach(btn => {
+        if (!availableButtons.includes(btn)) {
+            availableButtons.push(btn);
+        }
+    });
+    
+    // Обновляем пользователя
     user.class = role.name;
     user.character_id = characterId;
     user.character_name = character ? character.name : null;
-    user.available_buttons = role.available_buttons;
+    user.available_buttons = availableButtons; // ✅ Сохраняем правильные кнопки
     user.last_active = new Date().toISOString();
     
     // Логируем смену роли (0 искр)
     addSparks(userId, SPARKS_SYSTEM.ROLE_CHANGE, 'role_change', `Смена роли: ${oldRole} → ${role.name}`);
+    
+    console.log(`✅ Роль изменена для пользователя ${userId}:`, {
+        old_role: oldRole,
+        new_role: role.name,
+        available_buttons: availableButtons
+    });
     
     res.json({ 
         success: true, 
@@ -2467,7 +2491,6 @@ app.post('/api/users/change-role', (req, res) => {
     });
 });
 
-// server.js - добавим функцию в регистрацию пользователя
 app.post('/api/users/register', (req, res) => {
     try {
         const { userId, firstName, username, roleId, characterId } = req.body;
@@ -2496,10 +2519,28 @@ app.post('/api/users/register', (req, res) => {
         const isNewUser = !user;
         const availableButtons = role.available_buttons || [];
         
-        // ✅ ВСЕГДА добавляем кнопку приватных материалов
-        if (!availableButtons.includes('private_videos')) {
-            availableButtons.push('private_videos');
+        // ✅ ИСПРАВЛЕНИЕ: ПРОБЛЕМА ЗДЕСЬ
+        // ВМЕСТО ПРОСТОГО ДОБАВЛЕНИЯ private_videos, ИСПОЛЬЗУЕМ КНОПКИ ИЗ РОЛИ
+        // Убираем эту строку:
+        // if (!availableButtons.includes('private_videos')) {
+        //     availableButtons.push('private_videos');
+        // }
+        
+        // ✅ ИСПРАВЛЕННЫЙ КОД: Используем кнопки из роли + проверяем персонажа
+        let finalAvailableButtons = [...availableButtons];
+        
+        // Если есть персонаж, добавляем его кнопки
+        if (character && character.available_buttons) {
+            finalAvailableButtons = [...new Set([...finalAvailableButtons, ...character.available_buttons])];
         }
+        
+        // ✅ ВСЕГДА добавляем базовые кнопки которые должны быть у всех
+        const mandatoryButtons = ['profile', 'activities'];
+        mandatoryButtons.forEach(btn => {
+            if (!finalAvailableButtons.includes(btn)) {
+                finalAvailableButtons.push(btn);
+            }
+        });
         
         if (!user) {
             // СОЗДАЕМ НОВОГО РЕАЛЬНОГО ПОЛЬЗОВАТЕЛЯ
@@ -2514,7 +2555,7 @@ app.post('/api/users/register', (req, res) => {
                 class: role.name,
                 character_id: characterId || 1,
                 character_name: character ? character.name : 'Лука Цветной',
-                available_buttons: availableButtons, // ✅ Используем обновленный список
+                available_buttons: finalAvailableButtons, // ✅ Используем исправленный список
                 registration_date: new Date().toISOString(),
                 last_active: new Date().toISOString()
             };
@@ -2532,7 +2573,7 @@ app.post('/api/users/register', (req, res) => {
             user.character_id = characterId || user.character_id;
             user.character_name = character ? character.name : user.character_name;
             user.is_registered = true;
-            user.available_buttons = availableButtons; // ✅ Обновляем список кнопок
+            user.available_buttons = finalAvailableButtons; // ✅ Обновляем список кнопок
             user.last_active = new Date().toISOString();
         }
         
