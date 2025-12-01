@@ -11,7 +11,7 @@
             box-sizing: border-box; 
         }
         
-        body { 
+        body { так, при убирании кнопок убирается кнопка приватные материалы а при выборе какие кнопки оставить а какие выключить нет выбора кнопки привтаные материалы
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #2d3748; 
@@ -2654,41 +2654,33 @@ async function exportUsers() {
             populateRoleButtons();
         }
 
-       // Заполнение кнопок роли
-function populateRoleButtons() {
-    const buttonsGrid = document.getElementById('roleButtons');
-    const availableButtons = [
-        { id: 'quiz', label: '🎯 Квизы', checked: true },
-        { id: 'marathon', label: '🏃‍♂️ Марафоны', checked: true },
-        { id: 'works', label: '🖼️ Работы', checked: true },
-        { id: 'activities', label: '📊 Активности', checked: true },
-        { id: 'posts', label: '📰 Посты', checked: true },
-        { id: 'shop', label: '🛒 Магазин', checked: true },
-        { id: 'invite', label: '👥 Приглашения', checked: true },
-        { id: 'interactives', label: '🎮 Интерактивы', checked: true },
-        { id: 'change_role', label: '🔄 Смена роли', checked: true },
-        { id: 'private_videos', label: '🎬 Приватные материалы', checked: true } // ← ДОБАВИЛИ ЭТУ СТРОЧКУ
-    ];
-    
-    buttonsGrid.innerHTML = '';
-    
-    availableButtons.forEach(button => {
-        const buttonHtml = `
-            <div class="button-checkbox ${button.checked ? 'checked' : ''}">
-                <input type="checkbox" id="btn_${button.id}" ${button.checked ? 'checked' : ''}>
-                <label for="btn_${button.id}">${button.label}</label>
-            </div>
-        `;
-        buttonsGrid.innerHTML += buttonHtml;
-    });
-    
-    // Добавить обработчики для чекбоксов
-    document.querySelectorAll('.button-checkbox input').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            this.parentElement.classList.toggle('checked', this.checked);
-        });
-    });
-}
+        // Заполнение кнопок роли
+        function populateRoleButtons() {
+            const buttonsGrid = document.getElementById('roleButtons');
+            const availableButtons = [
+                { id: 'quiz', label: '🎯 Квизы', checked: true },
+                { id: 'marathon', label: '🏃‍♂️ Марафоны', checked: true },
+                { id: 'works', label: '🖼️ Работы', checked: true },
+                { id: 'activities', label: '📊 Активности', checked: true },
+                { id: 'posts', label: '📰 Посты', checked: true },
+                { id: 'shop', label: '🛒 Магазин', checked: true },
+                { id: 'invite', label: '👥 Приглашения', checked: true },
+                { id: 'interactives', label: '🎮 Интерактивы', checked: true },
+                { id: 'change_role', label: '🔄 Смена роли', checked: true },
+                { id: 'private_videos', label: '🎬 Приватные материалы', checked: true 
+            ];
+            
+            buttonsGrid.innerHTML = '';
+            
+            availableButtons.forEach(button => {
+                const buttonHtml = `
+                    <div class="button-checkbox ${button.checked ? 'checked' : ''}">
+                        <input type="checkbox" id="btn_${button.id}" ${button.checked ? 'checked' : ''}>
+                        <label for="btn_${button.id}">${button.label}</label>
+                    </div>
+                `;
+                buttonsGrid.innerHTML += buttonHtml;
+            });
             
             // Добавить обработчики для чекбоксов
             document.querySelectorAll('.button-checkbox input').forEach(checkbox => {
@@ -2698,7 +2690,7 @@ function populateRoleButtons() {
             });
         }
 
-// Сохранение роли
+        // Сохранение роли
 async function saveRole() {
     const name = document.getElementById('roleName').value.trim();
     const description = document.getElementById('roleDescription').value.trim();
@@ -2716,9 +2708,8 @@ async function saveRole() {
         available_buttons.push(checkbox.id.replace('btn_', ''));
     });
     
-    // ВСЕГДА добавляем обязательные кнопки
-    const mandatoryButtons = ['profile', 'activities', 'private_videos']; // ← ДОБАВИЛИ private_videos
-    
+    // ✅ ИСПРАВЛЕНИЕ: Обязательные кнопки
+    const mandatoryButtons = ['profile', 'activities'];
     mandatoryButtons.forEach(btn => {
         if (!available_buttons.includes(btn)) {
             available_buttons.push(btn);
@@ -6517,4 +6508,4 @@ function getLevelName(level) {
 }
     </script>
 </body>
-</html> 
+</html>
