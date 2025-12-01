@@ -3185,6 +3185,245 @@ app.get('/api/webapp/referral-stats/:userId', (req, res) => {
     }
 });
 
+// ✅ ЭНДПОИНТ ДЛЯ АДМИНСКОГО УПРАВЛЕНИЯ ИСКРАМИ
+app.post('/api/admin/manage-sparks', requireAdmin, (req, res) => {
+    try {
+        const { targetUserId, action, amount, reason } = req.body;
+        const adminId = req.admin.user_id;
+        
+        console.log('💰 Админ управление искрами:', { 
+            adminId, targetUserId, action, amount, reason 
+        });
+
+        // Валидация
+        if (!targetUserId || !action || !amount || !reason) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Все поля обязательны: targetUserId, action, amount, reason' 
+            });
+        }
+
+        const amountNum = parseFloat(amount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Сумма должна быть положительным числом' 
+            });
+        }
+
+        if (!['add', 'subtract'].includes(action)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Действие должно быть: add (начислить) или subtract (списать)' 
+            });
+        }
+
+        // Находим пользователя
+        const user = db.users.find(u => u.user_id == targetUserId);
+        if (!user) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'Пользователь не найден' 
+            });
+        }
+
+        // Находим админа для логирования
+        const admin = db.admins.find(a => a.user_id == adminId);
+        const adminName = admin?.username || `Admin#${adminId}`;
+
+        // Проверяем баланс при списании
+        if (action === 'subtract' && user.sparks < amountNum) {
+            return res.status(400).json({ 
+                success: false,
+                error: `Недостаточно искр у пользователя. Текущий баланс: ${user.sparks.toFixed(1)}✨` 
+            });
+        }
+
+        // Выполняем операцию
+        const oldSparks = user.sparks;
+        let newSparks;
+        let sparksChange;
+
+        if (action === 'add') {
+            newSparks = Number((user.sparks + amountNum).toFixed(1));
+            sparksChange = amountNum;
+        } else {
+            newSparks = Number((user.sparks - amountNum).toFixed(1));
+            sparksChange = -amountNum;
+        }
+
+        // Обновляем пользователя
+        user.sparks = newSparks;
+        user.level = calculateLevel(user.sparks);
+        user.last_active = new Date().toISOString();
+
+        // Записываем активность
+        const activity = {
+            id: Date.now(),
+            user_id: parseInt(targetUserId),
+            activity_type: 'admin_spark_management',
+            sparks_earned: sparksChange,
+            description: `${reason} (Админ: ${adminName})`,
+            old_balance: oldSparks,
+            new_balance: newSparks,
+            admin_id: adminId,
+            admin_action: action,
+            admin_reason: reason,
+            created_at: new Date().toISOString()
+        };
+        db.activities.push(activity);
+
+        // Записываем админское действие в отдельный лог
+        const adminLog = {
+            id: Date.now(),
+            admin_id: adminId,
+            admin_name: adminName,
+            target_user_id: targetUserId,
+            target_user_name: user.tg_first_name,
+            action: action,
+            amount: amountNum,
+            reason: reason,
+            old_balance: oldSparks,
+            new_balance: newSparks,
+            created_at: new Date().toISOString()
+        };
+        
+        // Создаем коллекцию для админских действий если ее нет
+        if (!db.admin_actions) {
+            db.admin_actions = [];
+        }
+        db.admin_actions.push(adminLog);
+
+        console.log(`✅ АДМИНСКОЕ УПРАВЛЕНИЕ ИСКРАМИ:`);
+        console.log(`   Админ: ${adminName} (ID: ${adminId})`);
+        console.log(`   Пользователь: ${user.tg_first_name} (ID: ${targetUserId})`);
+        console.log(`   Действие: ${action === 'add' ? 'Начисление' : 'Списание'}`);
+        console.log(`   Сумма: ${sparksChange > 0 ? '+' : ''}${sparksChange}✨`);
+        console.log(`   Баланс: ${oldSparks} → ${newSparks}✨`);
+        console.log(`   Причина: ${reason}`);
+
+        res.json({
+            success: true,
+            message: `${action === 'add' ? 'Начислено' : 'Списано'} ${amountNum}✨ пользователю ${user.tg_first_name}`,
+            user: {
+                id: user.user_id,
+                name: user.tg_first_name,
+                old_balance: oldSparks,
+                new_balance: newSparks,
+                level: user.level
+            },
+            action: action,
+            amount: amountNum,
+            reason: reason,
+            admin: adminName,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка управления искрами:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка сервера при управлении искрами' 
+        });
+    }
+});
+
+// ✅ ЭНДПОИНТ ДЛЯ ПОЛУЧЕНИЯ ИСТОРИИ АДМИНСКИХ ДЕЙСТВИЙ
+app.get('/api/admin/action-history', requireAdmin, (req, res) => {
+    try {
+        const { limit = 50, page = 1 } = req.query;
+        const offset = (page - 1) * limit;
+        
+        // Используем существующие действия или создаем пустой массив
+        const actions = db.admin_actions || [];
+        
+        // Сортируем по дате (новые сверху) и пагинируем
+        const paginatedActions = actions
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(offset, offset + parseInt(limit));
+        
+        res.json({
+            success: true,
+            actions: paginatedActions,
+            total: actions.length,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total_pages: Math.ceil(actions.length / limit)
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения истории действий:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка сервера' 
+        });
+    }
+});
+
+// ✅ ЭНДПОИНТ ДЛЯ ПОИСКА ПОЛЬЗОВАТЕЛЕЙ ПО ID ИЛИ ИМЕНИ
+app.get('/api/admin/search-users', requireAdmin, (req, res) => {
+    try {
+        const { query } = req.query;
+        
+        if (!query || query.length < 1) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Введите поисковый запрос' 
+            });
+        }
+
+        const searchQuery = query.toString().toLowerCase();
+        
+        const results = db.users
+            .filter(user => {
+                // Ищем по ID
+                if (user.user_id.toString().includes(searchQuery)) {
+                    return true;
+                }
+                
+                // Ищем по имени
+                if (user.tg_first_name && 
+                    user.tg_first_name.toLowerCase().includes(searchQuery)) {
+                    return true;
+                }
+                
+                // Ищем по username
+                if (user.tg_username && 
+                    user.tg_username.toLowerCase().includes(searchQuery)) {
+                    return true;
+                }
+                
+                return false;
+            })
+            .map(user => ({
+                id: user.user_id,
+                name: user.tg_first_name,
+                username: user.tg_username,
+                sparks: user.sparks,
+                level: user.level,
+                role: user.class,
+                character: user.character_name,
+                is_registered: user.is_registered,
+                last_active: user.last_active
+            }))
+            .slice(0, 20); // Ограничиваем результаты
+
+        res.json({
+            success: true,
+            query: searchQuery,
+            results: results,
+            count: results.length
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка поиска пользователей:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка поиска' 
+        });
+    }
+});
+
 // ==================== БАЗОВЫЕ МАРШРУТЫ ДЛЯ ПРОВЕРКИ ====================
 
 // Проверка всех API маршрутов
