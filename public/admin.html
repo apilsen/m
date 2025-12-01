@@ -1083,6 +1083,7 @@
         <div class="nav-tabs">
             <div class="nav-tab active" onclick="showTab('dashboard')">📊 Дашборд</div>
             <div class="nav-tab" onclick="showTab('users')">👥 Пользователи</div>
+            <div class="nav-tab" onclick="showTab('sparksManagement')">💰 Искры</div>
             <div class="nav-tab" onclick="showTab('roles')">🎭 Роли</div>
             <div class="nav-tab" onclick="showTab('characters')">👤 Персонажи</div>
             <div class="nav-tab" onclick="showTab('quizzes')">🎯 Квизы</div>
@@ -1165,6 +1166,99 @@
             </div>
         </div>
 
+<!-- ==================== УПРАВЛЕНИЕ ИСКРАМИ ==================== -->
+<div id="sparksManagement" class="tab-content">
+    <div class="card">
+        <h2 style="margin-bottom: 20px;">💰 Управление искрами пользователей</h2>
+        
+        <!-- Форма управления искрами -->
+        <div class="form-group">
+            <label class="form-label">🔍 Поиск пользователя:</label>
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                <input type="text" id="userSearchInput" class="form-control" 
+                       placeholder="Введите ID, имя или username пользователя" 
+                       style="flex: 1;">
+                <button class="btn btn-info" onclick="searchUser()">
+                    🔍 Найти
+                </button>
+            </div>
+            
+            <div id="searchResults" style="margin-bottom: 24px;"></div>
+        </div>
+
+        <!-- Форма управления искрами -->
+        <div id="sparkManagementForm" class="card" style="display: none; background: #f7fafc;">
+            <h3 id="selectedUserInfo" style="margin-bottom: 20px;"></h3>
+            
+            <div class="form-group">
+                <label class="form-label">💡 Действие:</label>
+                <select id="sparkAction" class="form-control" onchange="updateActionDescription()">
+                    <option value="add">➕ Начислить искры</option>
+                    <option value="subtract">➖ Списать искры</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" id="amountLabel">Сумма для начисления (искры):</label>
+                <input type="number" id="sparkAmount" class="form-control" 
+                       min="0.1" step="0.1" value="10" placeholder="10">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📝 Причина:</label>
+                <textarea id="sparkReason" class="form-control" rows="3" 
+                          placeholder="Опишите причину начисления/списания..." required></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">📊 Текущий баланс:</label>
+                <div style="font-size: 24px; font-weight: bold; color: #d69e2e; text-align: center;" 
+                     id="currentBalance">0✨</div>
+            </div>
+            
+            <div id="newBalancePreview" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">🔄 Новый баланс после операции:</label>
+                    <div style="font-size: 20px; font-weight: bold; color: #38a169; text-align: center;" 
+                         id="previewNewBalance">0✨</div>
+                </div>
+            </div>
+            
+            <div id="warningMessage" class="message warning" style="display: none; margin-bottom: 16px;"></div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-success" onclick="executeSparkOperation()" id="executeBtn">
+                    💾 Подтвердить операцию
+                </button>
+                <button class="btn btn-danger" onclick="cancelSparkOperation()">
+                    ❌ Отмена
+                </button>
+            </div>
+        </div>
+        
+        <!-- История операций -->
+        <div class="card" style="margin-top: 24px;">
+            <h3 style="margin-bottom: 16px;">📋 История операций с искрами</h3>
+            
+            <div class="filters">
+                <select class="filter-select" id="historyFilter" onchange="loadActionHistory()">
+                    <option value="all">Все операции</option>
+                    <option value="add">Только начисления</option>
+                    <option value="subtract">Только списания</option>
+                </select>
+                <input type="number" id="historyLimit" class="form-control" 
+                       value="20" min="1" max="100" onchange="loadActionHistory()" 
+                       style="width: 100px;">
+                <span style="color: #718096; font-size: 14px;">записей</span>
+            </div>
+            
+            <div id="actionHistory" class="loading" style="margin-top: 16px;">
+                Загрузка истории операций...
+            </div>
+        </div>
+    </div>
+</div>
+        
         <!-- Роли -->
         <div id="roles" class="tab-content">
             <div class="card">
@@ -1972,6 +2066,7 @@
         let interactiveImageData = null;
         let shopItemFileData = null;
         let shopItemPreviewData = null;
+        let selectedUserForSparkManagement = null;
 
         // ИНИЦИАЛИЗАЦИЯ АДМИН-ПАНЕЛИ
         async function initAdminPanel() {
@@ -2026,7 +2121,6 @@
             }
         }
 
-        // Загрузка всех данных
        async function loadAllData() {
     console.log('🔄 Начало загрузки всех данных...');
     
@@ -2042,14 +2136,18 @@
         await loadPosts();
         await loadAdmins();
         await loadModerationData();
-        await loadPrivateVideosAdmin(); // ← ЭТА СТРОЧКА ДОЛЖНА БЫТЬ
+        await loadPrivateVideosAdmin();
+        
+        // ✅ Загружаем историю операций с искрами если вкладка активна
+        if (document.getElementById('sparksManagement')?.classList.contains('active')) {
+            await loadActionHistory();
+        }
         
         console.log('✅ Все данные успешно загружены');
     } catch (error) {
         console.error('❌ Ошибка загрузки данных:', error);
     }
 }
-
         // Показать вкладку
         function showTab(tabName) {
             console.log('🎯 Переключение на вкладку:', tabName);
@@ -5972,6 +6070,368 @@ function simpleParseTelegramUrl(url) {
             }
         });
 
+// ==================== УПРАВЛЕНИЕ ИСКРАМИ ====================
+
+// Поиск пользователя
+async function searchUser() {
+    const query = document.getElementById('userSearchInput').value.trim();
+    
+    if (!query || query.length < 1) {
+        showMessage('❌ Введите поисковый запрос', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/search-users?userId=${currentUserId}&query=${encodeURIComponent(query)}`);
+        const result = await response.json();
+        
+        if (result.success && result.results.length > 0) {
+            displaySearchResults(result.results);
+        } else {
+            document.getElementById('searchResults').innerHTML = `
+                <div class="message warning">
+                    👤 Пользователи не найдены по запросу: "${query}"
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Ошибка поиска:', error);
+        showMessage('❌ Ошибка поиска пользователя', 'error');
+    }
+}
+
+// Отображение результатов поиска
+function displaySearchResults(results) {
+    const container = document.getElementById('searchResults');
+    
+    let html = '<h4 style="margin-bottom: 12px;">🔍 Найденные пользователи:</h4>';
+    
+    results.forEach(user => {
+        html += `
+            <div class="user-search-result" onclick="selectUserForSparkManagement(${JSON.stringify(user).replace(/"/g, '&quot;')})"
+                 style="padding: 12px; margin-bottom: 8px; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${user.name}</strong>
+                        ${user.username ? `<br><small>@${user.username}</small>` : ''}
+                        <div style="font-size: 12px; color: #718096;">
+                            ID: ${user.id} • ${user.role || 'Без роли'}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 18px; font-weight: bold; color: #d69e2e;">
+                            ${user.sparks.toFixed(1)}✨
+                        </div>
+                        <div style="font-size: 12px; color: #718096;">
+                            ${user.level}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Добавляем hover эффекты
+    document.querySelectorAll('.user-search-result').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.borderColor = '#667eea';
+            item.style.background = '#f7fafc';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.borderColor = '#e2e8f0';
+            item.style.background = 'transparent';
+        });
+    });
+}
+
+// Выбор пользователя для управления искрами
+function selectUserForSparkManagement(user) {
+    selectedUserForSparkManagement = user;
+    
+    // Обновляем информацию о пользователе
+    document.getElementById('selectedUserInfo').innerHTML = `
+        Управление искрами для: <strong>${user.name}</strong>
+        ${user.username ? `(@${user.username})` : ''}
+        <br>
+        <small style="color: #718096;">
+            ID: ${user.id} • ${user.role || 'Без роли'} • ${user.level}
+        </small>
+    `;
+    
+    // Обновляем текущий баланс
+    document.getElementById('currentBalance').textContent = `${user.sparks.toFixed(1)}✨`;
+    
+    // Показываем форму управления
+    document.getElementById('sparkManagementForm').style.display = 'block';
+    
+    // Обновляем описание действия
+    updateActionDescription();
+    
+    // Очищаем результаты поиска
+    document.getElementById('searchResults').innerHTML = '';
+    document.getElementById('userSearchInput').value = '';
+    
+    // Прокручиваем к форме
+    document.getElementById('sparkManagementForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Обновление описания действия
+function updateActionDescription() {
+    const action = document.getElementById('sparkAction').value;
+    const amountInput = document.getElementById('sparkAmount');
+    const amount = parseFloat(amountInput.value) || 0;
+    const currentBalance = selectedUserForSparkManagement?.sparks || 0;
+    
+    // Обновляем label
+    document.getElementById('amountLabel').textContent = action === 'add' 
+        ? `Сумма для начисления (искры):` 
+        : `Сумма для списания (искры):`;
+    
+    // Обновляем preview нового баланса
+    if (selectedUserForSparkManagement && amount > 0) {
+        let newBalance;
+        let warningMessage = '';
+        
+        if (action === 'add') {
+            newBalance = currentBalance + amount;
+        } else {
+            newBalance = currentBalance - amount;
+            
+            if (newBalance < 0) {
+                warningMessage = `⚠️ Внимание: после списания баланс станет отрицательным (${newBalance.toFixed(1)}✨)`;
+            }
+        }
+        
+        document.getElementById('previewNewBalance').textContent = `${newBalance.toFixed(1)}✨`;
+        document.getElementById('newBalancePreview').style.display = 'block';
+        
+        // Показываем/скрываем предупреждение
+        const warningDiv = document.getElementById('warningMessage');
+        if (warningMessage) {
+            warningDiv.textContent = warningMessage;
+            warningDiv.style.display = 'block';
+            document.getElementById('executeBtn').disabled = true;
+        } else {
+            warningDiv.style.display = 'none';
+            document.getElementById('executeBtn').disabled = false;
+        }
+    }
+    
+    // Добавляем обработчик изменения суммы для real-time preview
+    amountInput.oninput = updateActionDescription;
+}
+
+// Выполнение операции с искрами
+async function executeSparkOperation() {
+    if (!selectedUserForSparkManagement) {
+        showMessage('❌ Пользователь не выбран', 'error');
+        return;
+    }
+    
+    const action = document.getElementById('sparkAction').value;
+    const amount = parseFloat(document.getElementById('sparkAmount').value);
+    const reason = document.getElementById('sparkReason').value.trim();
+    
+    // Валидация
+    if (!amount || amount <= 0) {
+        showMessage('❌ Введите корректную сумму', 'error');
+        return;
+    }
+    
+    if (!reason) {
+        showMessage('❌ Укажите причину операции', 'error');
+        return;
+    }
+    
+    try {
+        const executeBtn = document.getElementById('executeBtn');
+        const originalText = executeBtn.innerHTML;
+        executeBtn.innerHTML = '⏳ Обработка...';
+        executeBtn.disabled = true;
+        
+        const response = await fetch(`/api/admin/manage-sparks?userId=${currentUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                targetUserId: selectedUserForSparkManagement.id,
+                action: action,
+                amount: amount,
+                reason: reason
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage(`✅ ${result.message}`, 'success');
+            
+            // Обновляем информацию о пользователе
+            selectedUserForSparkManagement.sparks = result.user.new_balance;
+            selectedUserForSparkManagement.level = result.user.level;
+            
+            // Обновляем интерфейс
+            document.getElementById('currentBalance').textContent = `${result.user.new_balance.toFixed(1)}✨`;
+            updateActionDescription();
+            
+            // Очищаем форму
+            document.getElementById('sparkAmount').value = '10';
+            document.getElementById('sparkReason').value = '';
+            
+            // Перезагружаем историю
+            loadActionHistory();
+            
+        } else {
+            showMessage(`❌ ${result.error}`, 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка выполнения операции:', error);
+        showMessage('❌ Ошибка сервера', 'error');
+    } finally {
+        const executeBtn = document.getElementById('executeBtn');
+        executeBtn.innerHTML = '💾 Подтвердить операцию';
+        executeBtn.disabled = false;
+    }
+}
+
+// Отмена операции
+function cancelSparkOperation() {
+    selectedUserForSparkManagement = null;
+    document.getElementById('sparkManagementForm').style.display = 'none';
+    document.getElementById('userSearchInput').value = '';
+    document.getElementById('sparkAmount').value = '10';
+    document.getElementById('sparkReason').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+}
+
+// Загрузка истории операций
+async function loadActionHistory() {
+    try {
+        const filter = document.getElementById('historyFilter').value;
+        const limit = document.getElementById('historyLimit').value;
+        
+        const response = await fetch(`/api/admin/action-history?userId=${currentUserId}&limit=${limit}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            displayActionHistory(result.actions, filter);
+        } else {
+            document.getElementById('actionHistory').innerHTML = `
+                <div class="message error">
+                    ❌ Ошибка загрузки истории
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки истории:', error);
+        document.getElementById('actionHistory').innerHTML = `
+            <div class="message error">
+                ❌ Ошибка загрузки истории операций
+            </div>
+        `;
+    }
+}
+
+// Отображение истории операций
+function displayActionHistory(actions, filter) {
+    const container = document.getElementById('actionHistory');
+    
+    if (!actions || actions.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <div>Операций с искрами еще не было</div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Фильтрация если нужно
+    let filteredActions = actions;
+    if (filter !== 'all') {
+        filteredActions = actions.filter(action => action.action === filter);
+    }
+    
+    let html = '';
+    
+    filteredActions.forEach(action => {
+        const isAdd = action.action === 'add';
+        
+        html += `
+            <div class="spark-history-card" 
+                 style="padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">
+                            ${isAdd ? '➕ Начисление' : '➖ Списание'} 
+                            <span style="color: ${isAdd ? '#38a169' : '#e53e3e'};">
+                                ${isAdd ? '+' : ''}${action.amount}✨
+                            </span>
+                        </div>
+                        <div style="font-size: 14px; color: #718096; margin-bottom: 8px;">
+                            🔧 Админ: ${action.admin_name}
+                            <br>👤 Пользователь: ${action.target_user_name} (ID: ${action.target_user_id})
+                            <br>📝 Причина: ${action.reason}
+                        </div>
+                    </div>
+                    <div style="text-align: right; min-width: 120px;">
+                        <div style="font-size: 12px; color: #718096;">
+                            ${new Date(action.created_at).toLocaleString('ru-RU')}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 16px; font-size: 12px; color: #718096;">
+                    <div>
+                        <span style="font-weight: 600;">Старый баланс:</span> ${action.old_balance.toFixed(1)}✨
+                    </div>
+                    <div>→</div>
+                    <div>
+                        <span style="font-weight: 600;">Новый баланс:</span> ${action.new_balance.toFixed(1)}✨
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Инициализация при показе вкладки
+function showTab(tabName) {
+    // 1. Скрыть все вкладки
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // 2. Убрать активный класс со всех кнопок
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // 3. Показать выбранную вкладку
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+    
+    // 4. Активировать кнопку
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        const onclickAttr = tab.getAttribute('onclick');
+        if (onclickAttr && onclickAttr.includes(`showTab('${tabName}')`)) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // 5. Загружаем данные для вкладки
+    if (tabName === 'sparksManagement') {
+        loadActionHistory();
+    } else {
+        loadTabData(tabName);
+    }
+}
+        
         // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ПРИВАТНЫХ МАТЕРИАЛОВ ====================
 
 // Получение названия категории для админки
