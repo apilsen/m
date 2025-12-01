@@ -4927,8 +4927,6 @@ function setupBotHandlers() {
                             ]]
                         }
                     });
-                    return;
-                }
                 
                 // Обычный старт для обычных пользователей
                 const appUrl = `${process.env.APP_URL || 'https://apilsen-m-0cdf.twc1.net'}?tgWebAppStartParam=${userId}`;
