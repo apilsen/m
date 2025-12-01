@@ -2983,6 +2983,206 @@ app.get('/api/webapp/users/:userId/purchases', (req, res) => {
     }
 });
 
+// ==================== ФУНКЦИЯ ПРИГЛАШЕНИЯ ДРУГА С КАНАЛОМ ====================
+
+const INVITE_CONFIG = {
+    CHANNEL_INVITE_LINK: "https://t.me/+qTp2C_ZyhK0zNDdi", // Ваш канал
+    REFERRAL_BONUS: 10, // Искр за приглашение
+    INVITE_LINK_EXPIRE_DAYS: 30 // Срок действия инвайт-ссылки
+};
+
+// ✅ Эндпоинт для создания реферальной ссылки
+app.get('/api/webapp/create-invite-link', (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        
+        if (!userId) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'User ID required' 
+            });
+        }
+
+        const user = db.users.find(u => u.user_id === userId);
+        if (!user) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'User not found' 
+            });
+        }
+
+        // Создаем реферальную ссылку (замените YOUR_BOT_USERNAME на реальный username бота)
+        const referralCode = Buffer.from(`ref_${userId}_${Date.now()}`).toString('base64url');
+        const referralLink = `https://t.me/@AkademyEdisBot?start=${referralCode}`;
+        
+        // Прямая ссылка на канал с реферальным ID
+        const channelInviteLink = `${INVITE_CONFIG.CHANNEL_INVITE_LINK}?ref=${userId}`;
+        
+        // Сохраняем реферальный код
+        if (!user.referrals) user.referrals = [];
+        user.referral_code = referralCode;
+        user.referral_link = referralLink;
+        user.channel_invite_link = channelInviteLink;
+        user.last_active = new Date().toISOString();
+
+        res.json({
+            success: true,
+            referral_link: referralLink,
+            channel_invite_link: channelInviteLink,
+            message: "Ссылка создана! Поделитесь ею с друзьями.",
+            instructions: [
+                "1. Поделитесь ссылкой с другом",
+                "2. Друг должен нажать на ссылку и присоединиться к каналу",
+                "3. После вступления друга вы получите +10✨",
+                "4. Ваш друг также получит +10✨ бонуса"
+            ]
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка создания инвайт-ссылки:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка создания ссылки' 
+        });
+    }
+});
+
+// ✅ Эндпоинт для обработки реферального входа
+app.get('/api/webapp/handle-referral/:referralCode', (req, res) => {
+    try {
+        const referralCode = req.params.referralCode;
+        const newUserId = parseInt(req.query.userId);
+        
+        console.log('👥 Обработка реферала:', { referralCode, newUserId });
+
+        if (!referralCode || !newUserId) {
+            return res.json({ 
+                success: false,
+                error: 'Invalid referral data' 
+            });
+        }
+
+        // Декодируем реферальный код
+        const decoded = Buffer.from(referralCode, 'base64url').toString();
+        const match = decoded.match(/ref_(\d+)_(\d+)/);
+        
+        if (!match) {
+            return res.json({ 
+                success: false,
+                error: 'Invalid referral code' 
+            });
+        }
+
+        const referrerId = parseInt(match[1]);
+        
+        // Проверяем существующих пользователей
+        const referrer = db.users.find(u => u.user_id === referrerId);
+        const newUser = db.users.find(u => u.user_id === newUserId);
+        
+        if (!referrer || !newUser) {
+            return res.json({ 
+                success: false,
+                error: 'User not found' 
+            });
+        }
+
+        // Проверяем, не был ли уже начислен бонус
+        const existingReferral = db.activities.find(a => 
+            a.user_id === referrerId && 
+            a.activity_type === 'referral_bonus' &&
+            a.description && a.description.includes(`Реферал: ${newUserId}`)
+        );
+
+        if (existingReferral) {
+            return res.json({ 
+                success: false,
+                error: 'Бонус уже был начислен' 
+            });
+        }
+
+        // Начисляем бонус пригласившему
+        addSparks(referrerId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_bonus', 
+            `Пригласил друга (ID: ${newUserId}). Реферал присоединился к каналу`);
+        
+        // Начисляем бонус новому пользователю
+        addSparks(newUserId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_welcome_bonus',
+            'Бонус за присоединение по реферальной ссылке');
+
+        // Записываем реферальную связь
+        if (!referrer.referrals) referrer.referrals = [];
+        referrer.referrals.push({
+            user_id: newUserId,
+            date: new Date().toISOString(),
+            bonus_received: true
+        });
+
+        // Отмечаем пользователя как реферала
+        newUser.referred_by = referrerId;
+        newUser.referral_date = new Date().toISOString();
+
+        res.json({
+            success: true,
+            message: `🎉 Бонус начислен! Вы оба получили +${INVITE_CONFIG.REFERRAL_BONUS}✨`,
+            referrer_bonus: INVITE_CONFIG.REFERRAL_BONUS,
+            new_user_bonus: INVITE_CONFIG.REFERRAL_BONUS,
+            referrer_name: referrer.tg_first_name
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка обработки реферала:', error);
+        res.json({ 
+            success: false,
+            error: 'Ошибка обработки реферала' 
+        });
+    }
+});
+
+// ✅ Эндпоинт для проверки статуса рефералов
+app.get('/api/webapp/referral-stats/:userId', (req, res) => {
+    try {
+        const userId = parseInt(req.params.userId);
+        
+        const user = db.users.find(u => u.user_id === userId);
+        if (!user) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'User not found' 
+            });
+        }
+
+        const referrals = user.referrals || [];
+        const totalBonus = referrals.length * INVITE_CONFIG.REFERRAL_BONUS;
+        
+        const referralStats = {
+            total_referrals: referrals.length,
+            total_bonus_earned: totalBonus,
+            referrals: referrals.map(ref => {
+                const referredUser = db.users.find(u => u.user_id === ref.user_id);
+                return {
+                    user_id: ref.user_id,
+                    user_name: referredUser?.tg_first_name || 'Неизвестно',
+                    date: ref.date,
+                    status: ref.bonus_received ? '✅ Бонус получен' : '⏳ Ожидает'
+                };
+            })
+        };
+
+        res.json({
+            success: true,
+            stats: referralStats,
+            referral_link: user.referral_link,
+            channel_invite_link: user.channel_invite_link || INVITE_CONFIG.CHANNEL_INVITE_LINK
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка получения статистики рефералов:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка получения статистики' 
+        });
+    }
+});
+
 // ==================== БАЗОВЫЕ МАРШРУТЫ ДЛЯ ПРОВЕРКИ ====================
 
 // Проверка всех API маршрутов
