@@ -4358,12 +4358,12 @@ app.get('/api/admin/shop/items', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/shop/items', requireAdmin, (req, res) => {
-    console.log('🛒 Создание товара, данные:', {
-        title: req.body.title,
-        type: req.body.type,
-        hasEmbed: !!req.body.embed_html,
-        embedLength: req.body.embed_html?.length
-    });
+console.log('🛒 Создание товара с embed, данные:', {
+    title: req.body.title,
+    type: req.body.type,
+    hasEmbed: !!req.body.embed_html,
+    embedLength: req.body.embed_html?.length
+});
     
     const { title, description, type, file_url, preview_url, price, content_text, file_data, preview_data, embed_html } = req.body;
     
@@ -4377,18 +4377,18 @@ app.post('/api/admin/shop/items', requireAdmin, (req, res) => {
     }
     
     const newItem = {
-        id: Date.now(),
-        title,
-        description: description || '',
-        type: type || 'video',
-        file_url: file_url || file_data || '',
-        preview_url: preview_url || preview_data || '',
-        price: parseFloat(price),
-        content_text: content_text || '',
-        embed_html: embed_html || '',
-        is_active: true,
-        created_at: new Date().toISOString()
-    };
+    id: Date.now(),
+    title,
+    description: description || '',
+    type: type || 'video',
+    file_url: file_url || file_data || '',
+    preview_url: preview_url || preview_data || '',
+    price: parseFloat(price),
+    content_text: content_text || '',
+    embed_html: embed_html || '', // Убедитесь, что это сохраняется
+    is_active: true,
+    created_at: new Date().toISOString()
+};
     
     console.log('✅ Создан товар:', {
         id: newItem.id,
