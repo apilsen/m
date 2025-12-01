@@ -694,6 +694,56 @@
             line-height: 1.4;
         }
 
+/* Embed контейнеры */
+.embed-container {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+}
+
+.embed-container iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    border: none;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    .embed-container iframe {
+        min-height: 300px;
+    }
+    
+    .embed-container {
+        border-radius: 8px;
+    }
+}
+
+/* Предпросмотр в магазине */
+.embed-preview {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    color: white;
+    margin: 16px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.embed-preview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.embed-preview:active {
+    transform: translateY(0);
+}
+        
 /* Стили для реферальной системы */
 .referral-stats-grid {
     display: grid;
@@ -4509,6 +4559,103 @@ async function completeRegistration() {
     }
 }
 
+async function showEmbedPreview(itemId) {
+    try {
+        console.log('🎬 Открываем предпросмотр embed товара:', itemId);
+        
+        // Показываем загрузку
+        showMessage('⏳ Загружаем предпросмотр...', 'info');
+        
+        // Получаем embed HTML
+        const embedHTML = await getEmbedHTML(itemId);
+        
+        // Создаем модальное окно
+        const modal = document.createElement('div');
+        modal.id = 'embedPreviewModal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            padding: 20px;
+        `;
+        
+        modal.innerHTML = `
+            <div style="position: relative; width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; background: white; border-radius: 16px; padding: 20px;">
+                <button onclick="closeEmbedPreview()" 
+                        style="position: absolute; top: -40px; right: 0; background: #f56565; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; font-size: 18px; cursor: pointer; z-index: 10001; display: flex; align-items: center; justify-content: center;">
+                    ✕
+                </button>
+                
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 24px; font-weight: bold; color: #2d3748;">
+                        🎬 Предпросмотр
+                    </div>
+                    <div style="color: #718096; font-size: 14px; margin-top: 8px;">
+                        Это предварительный просмотр. Для полного доступа приобретите товар.
+                    </div>
+                </div>
+                
+                <!-- Основной контент -->
+                <div style="margin: 0 auto; max-width: 800px;">
+                    <div class="embed-container" style="border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+                        ${embedHTML}
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 20px; padding: 20px; background: #f7fafc; border-radius: 12px;">
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-weight: 600; color: #4a5568; margin-bottom: 8px;">
+                                🔒 Это демо-версия контента
+                            </div>
+                            <div style="color: #718096; font-size: 14px; line-height: 1.4;">
+                                После покупки вы получите полный доступ ко всем функциям и материалам.
+                            </div>
+                        </div>
+                        <button class="btn btn-success" onclick="purchaseItem(${itemId}); closeEmbedPreview();">
+                            🛒 Приобрести полный доступ
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 24px; color: #a0aec0; font-size: 12px;">
+                    * В демо-режиме некоторые функции могут быть ограничены
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Блокируем скролл страницы
+        document.body.style.overflow = 'hidden';
+        
+    } catch (error) {
+        console.error('❌ Ошибка открытия предпросмотра:', error);
+        showMessage('❌ Не удалось загрузить предпросмотр', 'error');
+    }
+}
+
+// Функция закрытия предпросмотра
+function closeEmbedPreview() {
+    const modal = document.getElementById('embedPreviewModal');
+    if (modal) {
+        document.body.removeChild(modal);
+        document.body.style.overflow = '';
+    }
+}
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeEmbedPreview();
+    }
+});
+    
 // ==================== СМЕНА РОЛИ ====================
 async function loadRolesForChange() {
     try {
