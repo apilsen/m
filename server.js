@@ -3467,6 +3467,36 @@ app.get('/api/admin/search-users', requireAdmin, (req, res) => {
 
 // ==================== БАЗОВЫЕ МАРШРУТЫ ДЛЯ ПРОВЕРКИ ====================
 
+// ✅ DEBUG ЭНДПОИНТ ДЛЯ ПРОВЕРКИ КНОПОК ПОЛЬЗОВАТЕЛЯ
+app.get('/api/debug/user-buttons/:userId', (req, res) => {
+    try {
+        const userId = parseInt(req.params.userId);
+        const user = db.users.find(u => u.user_id === userId);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const role = db.roles.find(r => r.name === user.class);
+        const character = db.characters.find(c => c.id === user.character_id);
+        
+        res.json({
+            user_id: userId,
+            user_name: user.tg_first_name,
+            role: user.class,
+            character: user.character_name,
+            user_buttons: user.available_buttons || [],
+            role_buttons: role?.available_buttons || [],
+            character_buttons: character?.available_buttons || [],
+            all_buttons_match: JSON.stringify(user.available_buttons) === JSON.stringify(role?.available_buttons)
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки кнопок:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
 // Проверка всех API маршрутов
 app.get('/api/debug/routes', (req, res) => {
     const routes = [
