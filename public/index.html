@@ -5575,6 +5575,170 @@ function filterPurchasesByType(type) {
     }
 }
 
+// ==================== ФУНКЦИИ ДЛЯ ПРИГЛАШЕНИЙ ====================
+
+async function generateInviteLink() {
+    try {
+        console.log('🔗 Генерация ссылки приглашения...');
+        showMessage('⏳ Создаем ссылку...', 'info');
+        
+        const response = await fetch(`/api/webapp/create-invite-link?userId=${currentUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const inviteLinkElement = document.getElementById('inviteLink');
+            inviteLinkElement.innerHTML = `
+                <div style="width: 100%;">
+                    <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Реферальная ссылка:</div>
+                    <div style="font-family: monospace; font-size: 12px; color: #667eea; word-break: break-all;">
+                        ${result.referral_link}
+                    </div>
+                    <div style="height: 1px; background: #e2e8f0; margin: 12px 0;"></div>
+                    <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Прямая ссылка в канал:</div>
+                    <div style="font-family: monospace; font-size: 12px; color: #48bb78; word-break: break-all;">
+                        ${result.channel_invite_link}
+                    </div>
+                </div>
+            `;
+            
+            // Сохраняем ссылку в глобальной переменной
+            window.currentInviteLink = result.referral_link;
+            window.currentChannelLink = result.channel_invite_link;
+            
+            // Активируем кнопку копирования
+            document.getElementById('copyBtn').disabled = false;
+            
+            showMessage('✅ Ссылка создана! Теперь можно скопировать.', 'success');
+            
+        } else {
+            throw new Error(result.error || 'Неизвестная ошибка');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка генерации ссылки:', error);
+        showMessage(`❌ ${error.message}`, 'error');
+    }
+}
+
+async function showReferralStats() {
+    try {
+        console.log('📊 Загрузка статистики приглашений...');
+        
+        const response = await fetch(`/api/webapp/referral-stats/${currentUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const statsContent = document.getElementById('referralStatsContent');
+            const stats = result.stats;
+            
+            let statsHTML = `
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">👥</div>
+                    <h3 style="margin-bottom: 8px;">Ваша реферальная статистика</h3>
+                    <div style="color: #718096; font-size: 14px;">
+                        Всего приглашено: ${stats.total_referrals} друзей
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px;">${stats.total_referrals}</div>
+                        <div style="font-size: 12px;">Приглашено</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #48bb78, #38a169); color: white; padding: 20px; border-radius: 12px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 4px;">${stats.total_bonus_earned}✨</div>
+                        <div style="font-size: 12px;">Заработано искр</div>
+                    </div>
+                </div>
+            `;
+            
+            if (stats.referrals.length > 0) {
+                statsHTML += `
+                    <h4 style="margin-bottom: 16px; color: #4a5568;">📋 Список приглашенных:</h4>
+                    <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px;">
+                `;
+                
+                stats.referrals.forEach((ref, index) => {
+                    statsHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: ${index < stats.referrals.length - 1 ? '1px solid #e2e8f0' : 'none'};">
+                            <div>
+                                <div style="font-weight: 600;">${ref.user_name}</div>
+                                <div style="color: #718096; font-size: 12px; margin-top: 4px;">
+                                    📅 ${new Date(ref.date).toLocaleDateString('ru-RU')}
+                                </div>
+                            </div>
+                            <span style="color: #48bb78; font-weight: 600;">${INVITE_CONFIG.REFERRAL_BONUS}✨</span>
+                        </div>
+                    `;
+                });
+                
+                statsHTML += `</div>`;
+            } else {
+                statsHTML += `
+                    <div class="info" style="text-align: center; padding: 40px;">
+                        <div style="font-size: 64px; margin-bottom: 16px;">👤</div>
+                        <h4 style="margin-bottom: 12px;">Еще нет приглашенных друзей</h4>
+                        <p style="color: #718096; margin-bottom: 20px;">
+                            Пригласите первого друга и получите +${INVITE_CONFIG.REFERRAL_BONUS}✨
+                        </p>
+                    </div>
+                `;
+            }
+            
+            statsContent.innerHTML = statsHTML;
+            showScreen('referralStatsScreen');
+            
+        } else {
+            throw new Error(result.error || 'Неизвестная ошибка');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки статистики:', error);
+        document.getElementById('referralStatsContent').innerHTML = `
+            <div class="error">
+                Ошибка загрузки статистики: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Обновленная функция копирования
+async function copyInviteLink() {
+    if (!window.currentInviteLink) {
+        showMessage('❌ Сначала создайте ссылку', 'error');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(window.currentInviteLink);
+        showMessage('✅ Ссылка скопирована в буфер обмена!', 'success');
+        
+        // Также показываем инструкцию
+        setTimeout(() => {
+            alert(`🎯 Ссылка скопирована!\n\n📋 Инструкция для друга:\n1. Нажмите на ссылку\n2. Присоединитесь к каналу\n3. Зарегистрируйтесь в боте\n\nПосле этого вы оба получите +${INVITE_CONFIG.REFERRAL_BONUS}✨`);
+        }, 500);
+        
+    } catch (error) {
+        console.error('❌ Ошибка копирования:', error);
+        showMessage('❌ Не удалось скопировать ссылку', 'error');
+    }
+}
+
+// Конфигурация
+const INVITE_CONFIG = {
+    REFERRAL_BONUS: 10
+};
+    
 // ==================== ИНТЕРАКТИВЫ ====================
 async function loadInteractives() {
     try {
