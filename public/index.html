@@ -5222,6 +5222,17 @@ async function loadShopItems() {
                         ${hasPurchased ? '<div style="color: #48bb78; font-size: 11px;">✅ Куплено</div>' : ''}
                     </div>
                 </div>
+
+${item.type === 'embed' ? `
+    <div class="embed-preview" onclick="showEmbedPreview(${item.id})">
+        <div style="font-size: 48px; margin-bottom: 12px;">🎬</div>
+        <div style="font-weight: 600; margin-bottom: 8px;">Встроенное видео</div>
+        <div style="opacity: 0.9; font-size: 14px;">Нажмите для предпросмотра</div>
+    </div>
+` : item.preview_url ? `
+    <img src="${item.preview_url}" class="media-preview" 
+         style="max-height: 150px; object-fit: cover;">
+` : ''}
                 
                 ${item.preview_url ? `
                     <img src="${item.preview_url}" class="media-preview" 
@@ -5526,6 +5537,61 @@ function showPurchaseDetail(purchase) {
     
     const detailContent = document.getElementById('purchaseDetailContent');
     
+    // Проверяем тип товара
+    if (purchase.type === 'embed' && purchase.embed_html) {
+        // Для embed-контента показываем HTML
+        detailContent.innerHTML = `
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h2 style="margin-bottom: 8px; color: #2d3748;">${purchase.title}</h2>
+                <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px;">
+                    <span class="badge badge-info">
+                        🎬 Встроенное видео
+                    </span>
+                    <span class="badge badge-success">
+                        💰 Куплено за ${purchase.price_paid || purchase.price}✨
+                    </span>
+                    <span class="badge" style="background: #e9d8fd; color: #6b46c1;">
+                        📅 ${new Date(purchase.purchased_at || purchase.created_at).toLocaleDateString('ru-RU')}
+                    </span>
+                </div>
+            </div>
+            
+            ${purchase.description ? `
+                <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 24px;">
+                    <h4 style="margin-bottom: 12px; color: #4a5568;">📝 Описание</h4>
+                    <p style="color: #718096; line-height: 1.6; margin: 0;">${purchase.description}</p>
+                </div>
+            ` : ''}
+            
+            <div style="margin-bottom: 24px;">
+                <h4 style="margin-bottom: 16px; color: #4a5568; text-align: center;">🎬 Встроенное видео</h4>
+                
+                <!-- Вставляем embed HTML напрямую -->
+                <div style="margin: 20px 0;">
+                    <div class="embed-container" style="width: 100%; max-width: 800px; margin: 0 auto;">
+                        ${purchase.embed_html}
+                    </div>
+                </div>
+                
+                ${purchase.content_text ? `
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-top: 20px;">
+                        <h4 style="margin-bottom: 12px; color: #4a5568;">📝 Дополнительная информация</h4>
+                        <div class="content-preview" style="max-height: none; white-space: pre-line; line-height: 1.6; font-size: 14px;">
+                            ${purchase.content_text}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <div style="text-align: center; margin-top: 32px;">
+                <button class="btn back-btn" onclick="showScreen('shopScreen')">
+                    ← Назад к покупкам
+                </button>
+            </div>
+        `;
+        
+    } else {
+    
     const fullContent = generatePurchaseContent(purchase);
     
     detailContent.innerHTML = `
@@ -5564,6 +5630,48 @@ function generatePurchaseContent(purchase) {
     const fileUrl = purchase.file_data || purchase.file_url;
     
     switch(purchase.type) {
+        case 'embed':
+            // Для embed-контента проверяем наличие HTML
+            if (purchase.embed_html) {
+                return `
+                    <div style="margin: 20px 0;">
+                        <h4 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: #2d3748;">
+                            🎬 Встроенное видео
+                        </h4>
+                        <div style="margin: 20px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                            <div style="width: 100%; padding: 20px; background: #f7fafc; border-radius: 12px 12px 0 0;">
+                                <div style="color: #4a5568; font-weight: 600; text-align: center;">
+                                    Встроенное видео-контент
+                                </div>
+                            </div>
+                            <!-- Вставляем embed HTML напрямую -->
+                            <div class="embed-container" style="border-radius: 0 0 12px 12px;">
+                                ${purchase.embed_html}
+                            </div>
+                        </div>
+                        
+                        ${purchase.content_text ? `
+                            <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-top: 20px;">
+                                <h4 style="margin-bottom: 12px; color: #4a5568;">📝 Описание контента</h4>
+                                <div class="content-preview" style="max-height: none; white-space: pre-line; line-height: 1.6; font-size: 14px;">
+                                    ${purchase.content_text}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="error" style="text-align: center; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                        <h4>Контент временно недоступен</h4>
+                        <p style="color: #718096; margin-top: 8px;">
+                            Видео-контент временно не доступен. Пожалуйста, обратитесь в поддержку.
+                        </p>
+                    </div>
+                `;
+            }
+            
         case 'video':
             return `
                 <div style="margin: 20px 0;">
@@ -5578,6 +5686,7 @@ function generatePurchaseContent(purchase) {
                     </div>
                 </div>
             `;
+            
         case 'image':
             const images = Array.isArray(fileUrl) ? fileUrl : [fileUrl];
             return `
@@ -5595,6 +5704,7 @@ function generatePurchaseContent(purchase) {
                     </div>
                 </div>
             `;
+            
         case 'text':
             return `
                 <div style="margin: 20px 0;">
@@ -5606,12 +5716,13 @@ function generatePurchaseContent(purchase) {
                     </div>
                 </div>
             `;
+            
         default:
             return `
                 <div style="margin: 20px 0;">
                     <h4 style="margin-bottom: 12px;">📦 Содержимое товара</h4>
                     <div class="info">
-                        <p>Тип содержимого: ${purchase.type}</p>
+                        <p>Тип содержимого: ${getPurchaseTypeName(purchase.type)}</p>
                         ${fileUrl ? `
                             <a href="${fileUrl}" target="_blank" class="btn btn-success">
                                 👀 Открыть содержимое
@@ -5684,6 +5795,52 @@ function filterPurchasesByType(type) {
     }
 }
 
+async function getEmbedHTML(itemId) {
+    try {
+        console.log('🔍 Запрашиваем embed HTML для товара:', itemId);
+        
+        // Сначала ищем в уже загруженных товарах магазина
+        const shopItemsResponse = await fetch('/api/webapp/shop/items');
+        const shopItems = await shopItemsResponse.json();
+        
+        if (Array.isArray(shopItems)) {
+            const item = shopItems.find(i => i.id === itemId);
+            if (item && item.embed_html) {
+                console.log('✅ Embed HTML найден в локальных данных');
+                return item.embed_html;
+            }
+        }
+        
+        // Если не нашли, запрашиваем отдельно
+        const response = await fetch(`/api/webapp/shop/items/${itemId}/embed`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.embed_html) {
+                return data.embed_html;
+            }
+        }
+        
+        // Если API не реализован, используем fallback
+        return `
+            <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 12px; color: white;">
+                <div style="font-size: 48px; margin-bottom: 16px;">🎬</div>
+                <div style="font-weight: 600; margin-bottom: 8px;">Встроенное видео</div>
+                <div style="opacity: 0.9;">Приобретите товар для просмотра полного контента</div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения embed HTML:', error);
+        return `
+            <div style="text-align: center; padding: 40px; background: #f7fafc; border-radius: 12px;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <div style="color: #f56565; font-weight: 600; margin-bottom: 8px;">Ошибка загрузки</div>
+                <div style="color: #718096;">Не удалось загрузить видео-контент</div>
+            </div>
+        `;
+    }
+}
+    
 // ==================== ФУНКЦИИ ДЛЯ ПРИГЛАШЕНИЙ ====================
 
 async function generateInviteLink() {
