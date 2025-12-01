@@ -2709,7 +2709,7 @@ async function saveRole() {
     });
     
     // ✅ ИСПРАВЛЕНИЕ: Обязательные кнопки
-    const mandatoryButtons = ['profile', 'activities'];
+    const mandatoryButtons = ['profile', 'activities', 'private_videos'];
     mandatoryButtons.forEach(btn => {
         if (!available_buttons.includes(btn)) {
             available_buttons.push(btn);
