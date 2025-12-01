@@ -5578,7 +5578,7 @@ async function startServer() {
             logSystemStatus();
         });
         
-        // Настраиваем graceful shutdown
+               // Настраиваем graceful shutdown
         setupGracefulShutdown(server);
         
         // Инициализируем Telegram бота
@@ -5597,3 +5597,6 @@ startServer().catch(error => {
     console.error('💥 Критическая ошибка запуска:', error);
     process.exit(1);
 });
+
+// ==================== ЭКСПОРТ ДЛЯ MODULES ====================
+export { app };
