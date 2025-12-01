@@ -74,12 +74,12 @@ function cleanupCompletedTransactions() {
         }
     }
 }
-// ✅ УПРОЩЕННАЯ ФУНКЦИЯ НАЧИСЛЕНИЯ/СПИСАНИЯ ИСКР
+// ✅ УПРОЩЕННАЯ ФУНКЦИЯ НАЧИСЛЕНИЯ/СПИСАНИЯ ИСКР С ВОЗВРАТОМ РЕЗУЛЬТАТА
 function addSparks(userId, sparks, activityType, description) {
     const user = db.users.find(u => u.user_id == userId);
     if (!user) {
         console.error('❌ Пользователь не найден для начисления искр:', userId);
-        return;
+        return false; // ← ВОЗВРАЩАЕМ false ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ НАЙДЕН
     }
     
     // Сохраняем старое значение для лога
@@ -88,7 +88,7 @@ function addSparks(userId, sparks, activityType, description) {
     // ПРОВЕРКА БАЛАНСА ПРИ СПИСАНИИ
     if (sparks < 0 && user.sparks < Math.abs(sparks)) {
         console.error(`❌ Недостаточно искр. Нужно: ${Math.abs(sparks)}✨, у вас: ${user.sparks}✨`);
-        return;
+        return false; // ← ВОЗВРАЩАЕМ false ПРИ НЕДОСТАТКЕ СРЕДСТВ
     }
     
     // ВЫЧИСЛЯЕМ НОВОЕ ЗНАЧЕНИЕ
@@ -116,6 +116,8 @@ function addSparks(userId, sparks, activityType, description) {
     console.log(`   Изменение: ${sparks > 0 ? '+' : ''}${sparks}✨`);
     console.log(`   Баланс: ${oldSparks} → ${user.sparks}✨`);
     console.log(`   Уровень: ${user.level}`);
+    
+    return true; // ← ВОЗВРАЩАЕМ true ПРИ УСПЕШНОМ ВЫПОЛНЕНИИ
 }
 // ✅ ТЕПЕРЬ ИНИЦИАЛИЗИРУЕМ EXPRESS APP
 const app = express();
