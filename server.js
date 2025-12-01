@@ -4953,7 +4953,6 @@ function setupBotHandlers() {
                 console.error('❌ Ошибка обработки /start:', error);
             }
         });
-    } // ← ДОБАВЛЕНО ЗАКРЫВАЮЩАЯ СКОБКА для setupWebAppHandlers
     
     // Вызываем функцию
     setupWebAppHandlers();
