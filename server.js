@@ -4901,31 +4901,60 @@ function setupBotHandlers() {
     }
 
     function setupWebAppHandlers() {
-    // Обработчик /start - сразу открывает приложение
-    bot.onText(/\/start/, async (msg) => {
-        try {
-            const chatId = msg.chat.id;
-            const userId = msg.from.id;
+   bot.onText(/\/start/, async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const firstName = msg.from.first_name || 'Пользователь';
+        const args = msg.text.split(' ');
+        
+        // Проверяем если пользователь - админ
+        const isAdmin = db.admins.find(a => a.user_id == userId);
+        
+        // Если есть аргумент 'admin', показываем админку
+        if (args[1] === 'admin' && isAdmin) {
+            const adminUrl = `${process.env.APP_URL || 'https://apilsen-m-0cdf.twc1.net'}/admin?userId=${userId}`;
             
-            const appUrl = `${process.env.APP_URL || 'https://yourdomain.com'}?tgWebAppStartParam=${userId}`;
-            
-            // Отправляем сообщение с кнопкой Web App
-            await bot.sendMessage(chatId, '🎨 Добро пожаловать в Мастерскую Вдохновения!', {
+            await bot.sendMessage(chatId, 
+                `🔧 *Панель администратора*\n\nНажмите кнопку ниже для доступа:`, {
+                parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [[
                         {
-                            text: "🚀 Открыть приложение",
-                            web_app: { url: appUrl }
+                            text: "Открыть Админ Панель",
+                            web_app: { url: adminUrl }
                         }
                     ]]
                 }
             });
-
-        } catch (error) {
-            console.error('❌ Ошибка обработки /start:', error);
+            return;
         }
-    });
-}
+        
+        // Обычный старт для обычных пользователей
+        const appUrl = `${process.env.APP_URL || 'https://apilsen-m-0cdf.twc1.net'}?tgWebAppStartParam=${userId}`;
+        
+        let welcomeText = `🎨 *Добро пожаловать в Мастерскую Вдохновения!*\n\nПривет, ${firstName}!`;
+        
+        if (isAdmin) {
+            welcomeText += `\n\n🔧 *Вы администратор!*\nДля доступа к админ панели используйте команду /admin`;
+        }
+        
+        await bot.sendMessage(chatId, welcomeText, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[
+                    {
+                        text: isAdmin ? "🚀 Открыть Приложение" : "🚀 Открыть Приложение",
+                        web_app: { url: appUrl }
+                    }
+                ]]
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка обработки /start:', error);
+    }
+});
 // ✅ ИСПРАВЛЕННЫЙ TELEGRAM БОТ
 async function handlePrivateStart(chatId, userId, firstName, msg) {
     try {
@@ -5117,7 +5146,7 @@ async function handleChannelStart(chatId, userId, firstName, msg) {
         }
     });
 
-// server.js - в функции setupBotHandlers() обновите обработчик /admin
+// Обработчик команды /admin
 bot.onText(/\/admin/, async (msg) => {
     try {
         const userId = msg.from.id;
@@ -5126,53 +5155,24 @@ bot.onText(/\/admin/, async (msg) => {
         
         console.log(`🔧 Запрос админ панели от пользователя ${userId} (${firstName})`);
 
-        // Проверяем, есть ли пользователь в системе
-        let user = db.users.find(u => u.user_id == userId);
-        if (!user) {
-            // Создаем временного пользователя
-            user = {
-                user_id: userId,
-                tg_first_name: firstName,
-                tg_username: msg.from.username || `user_${userId}`,
-                sparks: 0,
-                level: 'Ученик',
-                is_registered: false
-            };
-        }
-
-        // Автоматически добавляем в админы если это тестовые ID
-        const testAdminIds = [898508164, 79156202620, 781959267];
-        let admin = db.admins.find(a => a.user_id == userId);
+        // Проверяем права администратора
+        const admin = db.admins.find(a => a.user_id == userId);
         
-        if (testAdminIds.includes(userId) && !admin) {
-            admin = {
-                id: Date.now(),
-                user_id: userId,
-                username: user.tg_username,
-                role: 'admin',
-                created_at: new Date().toISOString()
-            };
-            db.admins.push(admin);
-            console.log(`✅ Пользователь ${userId} автоматически добавлен как админ`);
-        }
-
-        // Если не админ - предлагаем связаться
         if (!admin) {
+            // Если не админ, отправляем сообщение об ошибке
             await bot.sendMessage(chatId, 
-                `👋 Привет, ${firstName}!\n\n` +
                 `🔒 У вас нет доступа к админ панели.\n\n` +
                 `📧 Для получения доступа обратитесь к главному администратору.\n\n` +
-                `💡 Вы можете использовать другие команды:\n` +
-                `/start - Открыть приложение\n` +
-                `/help - Помощь по боту`, {
+                `💡 Используйте /start для открытия основного приложения.`, {
                 parse_mode: 'Markdown'
             });
             return;
         }
 
-        // Создаем ссылку на админ панель
-        const adminUrl = `${process.env.APP_URL || 'http://localhost:3000'}/admin?userId=${userId}`;
+        // ✅ ИСПРАВЛЕНИЕ: Формируем прямую ссылку на админку
+        const adminUrl = `${process.env.APP_URL || 'https://apilsen-m-0cdf.twc1.net'}/admin?userId=${userId}&tgWebAppStartParam=admin_${Date.now()}`;
         
+        // ✅ ОТПРАВЛЯЕМ СООБЩЕНИЕ С КНОПКОЙ ДЛЯ АДМИНОВ
         const keyboard = {
             inline_keyboard: [[
                 {
@@ -5183,10 +5183,6 @@ bot.onText(/\/admin/, async (msg) => {
                 {
                     text: "📊 Статистика",
                     callback_data: 'admin_stats'
-                },
-                {
-                    text: "👥 Пользователи", 
-                    callback_data: 'admin_users'
                 }
             ]]
         };
@@ -5194,13 +5190,14 @@ bot.onText(/\/admin/, async (msg) => {
         await bot.sendMessage(chatId, 
             `🔧 *Панель администратора*\n\n` +
             `*Добро пожаловать, ${admin.username || firstName}!*\n\n` +
-            `*Ваши права:* ${admin.role}\n\n` +
-            `Выберите действие или откройте полную админ панель:`, {
+            `*Ваша роль:* ${admin.role}\n` +
+            `*ID пользователя:* ${userId}\n\n` +
+            `Нажмите кнопку ниже для доступа к полной админ панели:`, {
             parse_mode: 'Markdown',
             reply_markup: keyboard
         });
 
-        console.log(`✅ Админ панель предложена пользователю ${userId}`);
+        console.log(`✅ Админ панель предложена пользователю ${userId}, ссылка: ${adminUrl}`);
 
     } catch (error) {
         console.error('❌ Ошибка команды /admin:', error);
@@ -5245,36 +5242,44 @@ bot.onText(/\/admin/, async (msg) => {
         }
     });
 
-// Обработчик callback кнопок админки
+// Обработчик callback кнопок
 bot.on('callback_query', async (callbackQuery) => {
     try {
         const userId = callbackQuery.from.id;
         const data = callbackQuery.data;
-        const messageId = callbackQuery.message.message_id;
+        const chatId = callbackQuery.message.chat.id;
         
-        // Проверяем права
-        const admin = db.admins.find(a => a.user_id == userId);
-        if (!admin) {
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Нет прав доступа' });
-            return;
+        if (data === 'admin_panel') {
+            // Проверяем права администратора
+            const admin = db.admins.find(a => a.user_id == userId);
+            
+            if (!admin) {
+                await bot.answerCallbackQuery(callbackQuery.id, { 
+                    text: '❌ Нет прав доступа' 
+                });
+                return;
+            }
+            
+            const adminUrl = `${process.env.APP_URL || 'https://apilsen-m-0cdf.twc1.net'}/admin?userId=${userId}`;
+            
+            // Редактируем сообщение с кнопкой
+            await bot.editMessageReplyMarkup({
+                inline_keyboard: [[
+                    {
+                        text: "🔧 Открыть Админ Панель",
+                        web_app: { url: adminUrl }
+                    }
+                ]]
+            }, {
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id
+            });
+            
+            await bot.answerCallbackQuery(callbackQuery.id);
         }
-
-        switch(data) {
-            case 'admin_stats':
-                await showAdminStats(callbackQuery);
-                break;
-                
-            case 'admin_users':
-                await showUsersStats(callbackQuery);
-                break;
-                
-            case 'admin_moderation':
-                await showModerationQueue(callbackQuery);
-                break;
-        }
-
+        
     } catch (error) {
-        console.error('❌ Ошибка callback админки:', error);
+        console.error('❌ Ошибка callback:', error);
     }
 });
 
