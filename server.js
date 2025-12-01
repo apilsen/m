@@ -232,58 +232,6 @@ function setupGracefulShutdown(server) {
     
     console.log('✅ Обработчики graceful shutdown установлены');
 } // ← ЭТА ЗАКРЫВАЮЩАЯ СКОБКА ОЧЕНЬ ВАЖНА// Обработка graceful shutdown
-function setupGracefulShutdown(server) {
-    const pidFile = join(__dirname, 'server.pid');
-    
-    const shutdownHandlers = {
-        'SIGINT': 'Ctrl+C',
-        'SIGTERM': 'системный сигнал завершения',
-        'SIGUSR2': 'перезапуск nodemon',
-        'uncaughtException': 'необработанное исключение',
-        'unhandledRejection': 'необработанный промис'
-    };
-    
-    Object.keys(shutdownHandlers).forEach(signal => {
-        process.on(signal, async (err) => {
-            console.log(`\n🔄 Получен ${shutdownHandlers[signal]} (${signal})`);
-            
-            if (err) {
-                console.error('❌ Ошибка:', err);
-            }
-            
-            try {
-                // Удаляем PID файл
-                const fs = await import('fs');
-                if (fs.existsSync(pidFile)) {
-                    fs.unlinkSync(pidFile);
-                    console.log('✅ PID файл удален');
-                }
-                
-                console.log('👋 Сервер корректно завершает работу...');
-                
-                if (server) {
-                    server.close(() => {
-                        console.log('✅ HTTP сервер остановлен');
-                        process.exit(signal === 'uncaughtException' ? 1 : 0);
-                    });
-                    
-                    // Таймаут на случай если сервер не закрывается
-                    setTimeout(() => {
-                        console.log('⚠️ Принудительное завершение');
-                        process.exit(1);
-                    }, 5000);
-                } else {
-                    process.exit(signal === 'uncaughtException' ? 1 : 0);
-                }
-            } catch (cleanupError) {
-                console.error('❌ Ошибка при завершении:', cleanupError);
-                process.exit(1);
-            }
-        });
-    });
-    
-    console.log('✅ Обработчики graceful shutdown установлены');
-} // ← ЭТА ЗАКРЫВАЮЩАЯ СКОБКА ОЧЕНЬ ВАЖНА
 
 // Автоматическое определение пути для TimeWeb
 const APP_ROOT = process.cwd();
