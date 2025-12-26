@@ -2592,29 +2592,39 @@ app.post('/api/users/register', (req, res) => {
             }
         }
 
-// ============ ВСТАВЛЯТЬ ЗДЕСЬ ============
         // ПОСЛЕ успешной регистрации обрабатываем реферала, если есть ref
         if (ref) {
             console.log(`🔗 Обработка реферала для пользователя ${userId}, ref=${ref}`);
             
-            // Используем setTimeout чтобы не блокировать ответ
-            setTimeout(async () => {
-                try {
-                    const referralResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/webapp/handle-referral?ref=${ref}&userId=${userId}`);
-                    if (!referralResponse.ok) {
-                        console.error('Ошибка при вызове реферального API');
-                        return;
-                    }
-                    
-                    const referralResult = await referralResponse.json();
-                    console.log('Результат обработки реферала:', referralResult);
-                    
-                } catch (error) {
-                    console.error('Ошибка обработки реферала:', error);
-                }
-            }, 100);
+            // Добавляем запись о реферале в базу
+            const referrerId = parseInt(ref);
+            const referrer = db.users.find(u => u.user_id === referrerId);
+            
+            if (referrer && referrerId !== userId) { // Проверяем что это не сам пользователь
+                // Начисляем бонус пригласившему
+                addSparks(referrerId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_bonus', 
+                    `Пригласил друга: ${user.tg_first_name} (ID: ${userId})`);
+                
+                // Начисляем бонус новому пользователю
+                addSparks(userId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_welcome_bonus',
+                    'Бонус за регистрацию по реферальной ссылке');
+                
+                // Записываем реферальную связь
+                if (!referrer.referrals) referrer.referrals = [];
+                referrer.referrals.push({
+                    user_id: userId,
+                    user_name: user.tg_first_name,
+                    date: new Date().toISOString(),
+                    bonus_received: true
+                });
+                
+                // Отмечаем пользователя как реферала
+                user.referred_by = referrerId;
+                user.referral_date = new Date().toISOString();
+                
+                console.log(`🎉 Реферальный бонус начислен! Пригласивший: ${referrer.tg_first_name}, новый пользователь: ${user.tg_first_name}`);
+            }
         }
-        // ============ КОНЕЦ ВСТАВКИ ============
         
         console.log('✅ Успешная регистрация:', {
             id: user.user_id,
@@ -3052,6 +3062,7 @@ app.get('/api/webapp/users/:userId/purchases', (req, res) => {
 
 // ==================== ФУНКЦИЯ ПРИГЛАШЕНИЯ ДРУГА С КАНАЛОМ ====================
 
+// Конфигурация приглашений
 const INVITE_CONFIG = {
     CHANNEL_INVITE_LINK: "https://t.me/+qqsP8Ex5l29mMTE6", // Ваш канал
     REFERRAL_BONUS: 10, // Искр за приглашение
