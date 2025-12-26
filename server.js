@@ -3029,9 +3029,9 @@ app.get('/api/webapp/users/:userId/purchases', (req, res) => {
 // ==================== ФУНКЦИЯ ПРИГЛАШЕНИЯ ДРУГА С КАНАЛОМ ====================
 
 const INVITE_CONFIG = {
-    CHANNEL_INVITE_LINK: "https://t.me/+qTp2C_ZyhK0zNDdi", // Ваш канал
+    CHANNEL_INVITE_LINK: "https://t.me/+qqsP8Ex5l29mMTE6", // Ваш канал
     REFERRAL_BONUS: 10, // Искр за приглашение
-    INVITE_LINK_EXPIRE_DAYS: 30 // Срок действия инвайт-ссылки
+    INVITE_LINK_EXPIRE_DAYS: 30
 };
 
 // ✅ Эндпоинт для создания реферальной ссылки
