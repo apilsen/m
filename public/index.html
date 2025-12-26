@@ -1295,6 +1295,44 @@
             }
         }
 
+/* Стили для кликабельного текста в постах */
+.content-text {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+.content-text a {
+    color: #4299e1 !important;
+    text-decoration: underline !important;
+    word-break: break-all !important;
+    cursor: pointer !important;
+}
+
+.content-text a:hover {
+    color: #3182ce !important;
+    text-decoration: underline !important;
+}
+
+/* Стили для кнопок копирования */
+.copy-content-btn {
+    transition: all 0.3s ease !important;
+}
+
+.copy-content-btn:hover {
+    background: #3182ce !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Стили для выделения текста */
+::selection {
+    background: rgba(66, 153, 225, 0.3) !important;
+}
+
+.content-text::selection {
+    background: rgba(66, 153, 225, 0.3) !important;
+}
+        
 /* ==================== МОБИЛЬНАЯ ОПТИМИЗАЦИЯ ==================== */
 @media (max-width: 768px) {
     .container {
@@ -1923,14 +1961,14 @@
     </div>
 </div>
 
-    <!-- Модальное окно для медиа -->
-    <div id="mediaModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; justify-content: center; align-items: center;">
-        <div style="position: relative; max-width: 95%; max-height: 95%;">
-            <img id="modalImage" style="max-width: 100%; max-height: 90vh; border-radius: 8px;">
-            <video id="modalVideo" controls style="max-width: 100%; max-height: 90vh; border-radius: 8px; display: none;"></video>
-            <button onclick="closeMediaModal()" style="position: absolute; top: -45px; right: 0; background: #f56565; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; font-size: 18px; cursor: pointer;">✕</button>
-        </div>
+<!-- Модальное окно для медиа -->
+<div id="mediaModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; justify-content: center; align-items: center; padding: 20px;">
+    <div style="position: relative; max-width: 95%; max-height: 95%;">
+        <img id="modalImage" style="max-width: 100%; max-height: 90vh; border-radius: 8px; cursor: pointer;">
+        <video id="modalVideo" controls style="max-width: 100%; max-height: 90vh; border-radius: 8px; display: none;"></video>
+        <button onclick="closeMediaModal()" style="position: absolute; top: -45px; right: 0; background: #f56565; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; font-size: 18px; cursor: pointer; z-index: 10001;">✕</button>
     </div>
+</div>
         
 <!-- Экран приглашений -->
 <div id="inviteScreen" class="screen">
@@ -6205,7 +6243,7 @@ function showInteractiveResult(isCorrect, sparksEarned, message) {
     showScreen('interactiveResultScreen');
 }
 
-// ==================== ПОСТЫ ====================
+// ==================== ПОСТЫ (ОБНОВЛЕННЫЕ) ====================
 async function loadPosts() {
     try {
         const response = await fetch('/api/webapp/channel-posts');
@@ -6223,63 +6261,218 @@ async function loadPosts() {
             const postCard = document.createElement('div');
             postCard.className = 'post-card';
             
+            // Обработка контента для кликабельных ссылок
+            const processedContent = makeLinksClickable(post.content);
+            
             postCard.innerHTML = `
-                <h3 style="margin-bottom: 12px;">${post.title}</h3>
-                ${post.image_url ? `
-                    <img src="${post.image_url}" class="media-preview">
-                ` : ''}
-                ${post.video_url ? `
-                    <video src="${post.video_url}" controls class="media-preview"></video>
-                ` : ''}
-                <div style="color: #4a5568; margin-bottom: 16px; line-height: 1.5;">
-                    ${post.content}
+                <div style="margin-bottom: 16px;">
+                    <h3 style="margin-bottom: 12px; color: #2d3748;">${post.title}</h3>
+                    ${post.image_url ? `
+                        <img src="${post.image_url}" class="media-preview" style="cursor: pointer;" onclick="openMediaModal('${post.image_url}', 'image')">
+                    ` : ''}
+                    ${post.video_url ? `
+                        <div style="position: relative;">
+                            <video src="${post.video_url}" class="media-preview" controls></video>
+                            <button class="btn" onclick="copyToClipboard('${post.video_url}', 'Ссылка на видео скопирована')" 
+                                    style="position: absolute; top: 10px; right: 10px; padding: 6px 12px; font-size: 12px; background: rgba(0,0,0,0.7); color: white;">
+                                📋 Копировать ссылку
+                            </button>
+                        </div>
+                    ` : ''}
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; color: #718096; font-size: 14px;">
-                    <span>💬 ${post.reviews_count} отзывов • ★ ${post.average_rating?.toFixed(1) || '0.0'}</span>
-                    <span>📅 ${new Date(post.created_at).toLocaleDateString('ru-RU')}</span>
+                
+                <div class="content-container" style="position: relative;">
+                    <div class="content-text" style="color: #4a5568; line-height: 1.6; white-space: pre-line; user-select: text; cursor: text; padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 16px;">
+                        ${processedContent}
+                    </div>
+                    <button class="copy-content-btn" onclick="copyPostContent(this)" 
+                            style="position: absolute; top: 10px; right: 10px; background: #4299e1; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;">
+                        📋 Копировать текст
+                    </button>
                 </div>
-                <button class="btn" onclick="showPostReview('${post.post_id}')" style="margin-top: 12px;">
-                    💬 Написать отзыв
-                </button>
+                
+                ${post.action_target ? `
+                    <div style="margin: 16px 0; padding: 12px; background: #ebf8ff; border-radius: 8px; border: 1px solid #bee3f8;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-weight: bold; color: #2b6cb0;">🔗 Ссылка:</span>
+                            <a href="${post.action_target}" target="_blank" style="color: #3182ce; text-decoration: underline; word-break: break-all;">
+                                ${truncateUrl(post.action_target, 40)}
+                            </a>
+                        </div>
+                        <button class="btn" onclick="copyToClipboard('${post.action_target}', 'Ссылка скопирована в буфер обмена')" style="padding: 8px 16px; font-size: 14px;">
+                            📋 Копировать ссылку
+                        </button>
+                    </div>
+                ` : ''}
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #718096; font-size: 14px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                    <div>
+                        <span>💬 ${post.reviews_count || 0} отзывов</span>
+                        <span style="margin-left: 12px;">★ ${post.average_rating?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span>📅 ${new Date(post.created_at).toLocaleDateString('ru-RU')}</span>
+                        <button class="btn" onclick="showPostReview('${post.post_id}')" style="padding: 8px 16px; font-size: 14px;">
+                            💬 Написать отзыв
+                        </button>
+                    </div>
+                </div>
             `;
             
             postsList.appendChild(postCard);
         });
+        
     } catch (error) {
-        document.getElementById('postsList').innerHTML = '<div class="error">Ошибка загрузки постов</div>';
+        console.error('❌ Ошибка загрузки постов:', error);
+        const postsList = document.getElementById('postsList');
+        postsList.innerHTML = `
+            <div class="error">
+                <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
+                <h3 style="margin-bottom: 12px;">Не удалось загрузить материалы</h3>
+                <p style="color: #718096; margin-bottom: 20px;">Попробуйте обновить страницу или повторить попытку позже</p>
+                <button class="btn" onclick="loadPosts()">
+                    🔄 Повторить попытку
+                </button>
+            </div>
+        `;
     }
 }
 
-function showPostReview(postId) {
-    const review = prompt('Напишите ваш отзыв о посте:');
-    if (review && review.trim()) {
-        submitPostReview(postId, review.trim());
-    }
+// Функция для обрезки длинных URL
+function truncateUrl(url, maxLength) {
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength) + '...';
 }
 
-async function submitPostReview(postId, reviewText) {
+// Функция для копирования контента поста
+function copyPostContent(button) {
+    const contentContainer = button.closest('.content-container');
+    const contentText = contentContainer.querySelector('.content-text');
+    
+    // Удаляем HTML теги для чистого текста
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contentText.innerHTML;
+    
+    // Восстанавливаем ссылки как текст
+    const links = tempDiv.querySelectorAll('a');
+    links.forEach(link => {
+        link.parentNode.replaceChild(document.createTextNode(link.href), link);
+    });
+    
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
+    
+    copyToClipboard(plainText, 'Текст скопирован в буфер обмена');
+}
+
+// Улучшенная функция копирования в буфер обмена
+async function copyToClipboard(text, successMessage = 'Скопировано!') {
     try {
-        const response = await fetch(`/api/webapp/posts/${postId}/review`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userId: currentUserId,
-                reviewText: reviewText,
-                rating: 5
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showMessage(`✅ ${result.message}`, 'success');
-            loadUserData();
-        } else {
-            showMessage(`❌ ${result.error}`, 'error');
-        }
+        await navigator.clipboard.writeText(text);
+        showMessage(`✅ ${successMessage}`, 'success');
+        return true;
     } catch (error) {
-        showMessage('❌ Ошибка отправки отзыва', 'error');
+        console.error('Ошибка копирования:', error);
+        
+        // Fallback для старых браузеров
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (successful) {
+                showMessage(`✅ ${successMessage}`, 'success');
+                return true;
+            } else {
+                throw new Error('Не удалось скопировать');
+            }
+        } catch (fallbackError) {
+            document.body.removeChild(textArea);
+            showMessage('❌ Не удалось скопировать', 'error');
+            return false;
+        }
     }
+}
+
+// Функция для преобразования ссылок в кликабельные
+function makeLinksClickable(text) {
+    if (!text) return '';
+    
+    // Регулярное выражение для поиска URL
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    
+    // Заменяем URL на ссылки
+    return text.replace(urlRegex, (url) => {
+        // Проверяем, не является ли уже ссылкой
+        if (url.startsWith('<a ') || url.includes('</a>')) {
+            return url;
+        }
+        
+        // Обрезаем URL если он слишком длинный для отображения
+        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
+        
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" 
+                style="color: #4299e1; text-decoration: underline; word-break: break-all;"
+                title="${url}">${displayUrl}</a>`;
+    });
+}
+
+// Функция для улучшенного просмотра медиа
+function openMediaModal(mediaUrl, mediaType) {
+    const modal = document.getElementById('mediaModal');
+    const modalImage = document.getElementById('modalImage');
+    const modalVideo = document.getElementById('modalVideo');
+    
+    if (mediaType === 'image') {
+        modalImage.src = mediaUrl;
+        modalImage.style.display = 'block';
+        modalVideo.style.display = 'none';
+        
+        // Добавляем кнопку копирования для изображений
+        modalImage.onclick = function(e) {
+            if (e.target === modalImage) {
+                copyToClipboard(mediaUrl, 'Ссылка на изображение скопирована');
+            }
+        };
+        
+    } else if (mediaType === 'video') {
+        modalVideo.src = mediaUrl;
+        modalVideo.style.display = 'block';
+        modalImage.style.display = 'none';
+    }
+    
+    modal.style.display = 'flex';
+    
+    // Добавляем кнопку копирования в модальное окно
+    const existingCopyBtn = document.querySelector('.media-modal-copy');
+    if (existingCopyBtn) existingCopyBtn.remove();
+    
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'media-modal-copy';
+    copyBtn.innerHTML = '📋 Копировать ссылку';
+    copyBtn.style.cssText = `
+        position: absolute;
+        top: -45px;
+        right: 50px;
+        background: #4299e1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        z-index: 10001;
+    `;
+    copyBtn.onclick = () => copyToClipboard(mediaUrl, 'Ссылка скопирована');
+    
+    modal.querySelector('div').appendChild(copyBtn);
 }
 
 // ==================== АКТИВНОСТИ ====================
@@ -6780,7 +6973,15 @@ function closeMediaModal() {
     const modalVideo = document.getElementById('modalVideo');
     
     modal.style.display = 'none';
-    modalVideo.pause(); // Останавливаем видео при закрытии
+    modalVideo.pause();
+    
+    // Очищаем источники чтобы освободить память
+    modalVideo.src = '';
+    document.getElementById('modalImage').src = '';
+    
+    // Убираем кнопку копирования
+    const copyBtn = document.querySelector('.media-modal-copy');
+    if (copyBtn) copyBtn.remove();
 }
 
 // Функции для перетаскивания файлов
