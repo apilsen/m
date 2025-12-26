@@ -1,25 +1,23 @@
+// ==================== ИМПОРТЫ ====================
 import express from 'express';
 import TelegramBot from 'node-telegram-bot-api';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import compression from 'compression';
+import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readdirSync, existsSync } from 'fs';
 import { readdirSync, existsSync, mkdirSync, createWriteStream, createReadStream } from 'fs';
-import { promises as fs } from 'fs';  // ДОБАВИТЬ ЭТУ СТРОКУ
-import { join, dirname } from 'path';
-import dotenv from 'dotenv';
-
-// ==================== СИСТЕМА УПРАВЛЕНИЯ ПРОЦЕССАМИ ====================
+import { promises as fs } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-const execAsync = promisify(exec);
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ДОБАВЬТЕ ПОСЛЕ ЭТОГО БЛОКА:
 // ==================== ДИРЕКТОРИИ ДЛЯ ЗАГРУЗКИ ====================
 const UPLOAD_DIR = join(__dirname, 'uploads');
 const TEMP_DIR = join(__dirname, 'temp');
