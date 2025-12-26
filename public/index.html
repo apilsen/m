@@ -1945,15 +1945,16 @@
             </p>
         </div>
         
-        <div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-            <h4 style="margin-bottom: 12px; color: #4a5568;">📋 Инструкция:</h4>
-            <ol style="color: #718096; padding-left: 20px; line-height: 1.6;">
-                <li style="margin-bottom: 8px;">Нажмите "Создать ссылку"</li>
-                <li style="margin-bottom: 8px;">Скопируйте уникальную ссылку</li>
-                <li style="margin-bottom: 8px;">Отправьте её другу в Telegram</li>
-                <li>Друг должен присоединиться к каналу и зарегистрироваться</li>
-            </ol>
-        </div>
+<div style="background: #f7fafc; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+    <h4 style="margin-bottom: 12px; color: #4a5568;">📋 Инструкция:</h4>
+    <ol style="color: #718096; padding-left: 20px; line-height: 1.6;">
+        <li style="margin-bottom: 8px;">Нажмите "Создать ссылку"</li>
+        <li style="margin-bottom: 8px;">Скопируйте <strong>ссылку на канал</strong></li>
+        <li style="margin-bottom: 8px;">Отправьте её другу в Telegram</li>
+        <li>Друг должен нажать на ссылку и присоединиться к каналу</li>
+        <li>После вступления в канал - зарегистрироваться в боте</li>
+    </ol>
+</div>
         
         <div style="background: white; padding: 16px; border-radius: 12px; margin: 16px 0; word-break: break-all; border: 2px solid #e2e8f0;">
             <div style="font-weight: 600; margin-bottom: 8px; color: #4a5568;">🔗 Ссылка для приглашения:</div>
@@ -5691,42 +5692,49 @@ async function generateInviteLink() {
         console.log('🔗 Генерация ссылки приглашения...');
         showMessage('⏳ Создаем ссылку...', 'info');
         
-        const response = await fetch(`/api/webapp/create-invite-link?userId=${currentUserId}`);
+        // Создаем ссылку на ваш канал
+        const channelInviteLink = "https://t.me/+qqsP8Ex5l29mMTE6";
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // Создаем реферальную ссылку для бота
+        const referralCode = Buffer.from(`ref_${currentUserId}_${Date.now()}`).toString('base64url');
+        const referralLink = `https://t.me/@AkademyEdisBot?start=${referralCode}`;
         
-        const result = await response.json();
+        // Сохраняем данные для пользователя
+        const result = {
+            success: true,
+            referral_link: referralLink,
+            channel_invite_link: channelInviteLink,
+            instructions: [
+                "1. Поделитесь ссылкой на канал с другом",
+                "2. Друг должен вступить в канал по ссылке",
+                "3. После вступления вы оба получите +10✨",
+                "4. Бонус начисляется автоматически после регистрации друга"
+            ]
+        };
         
-        if (result.success) {
-            const inviteLinkElement = document.getElementById('inviteLink');
-            inviteLinkElement.innerHTML = `
-                <div style="width: 100%;">
-                    <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Реферальная ссылка:</div>
-                    <div style="font-family: monospace; font-size: 12px; color: #667eea; word-break: break-all;">
-                        ${result.referral_link}
-                    </div>
-                    <div style="height: 1px; background: #e2e8f0; margin: 12px 0;"></div>
-                    <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Прямая ссылка в канал:</div>
-                    <div style="font-family: monospace; font-size: 12px; color: #48bb78; word-break: break-all;">
-                        ${result.channel_invite_link}
-                    </div>
+        const inviteLinkElement = document.getElementById('inviteLink');
+        inviteLinkElement.innerHTML = `
+            <div style="width: 100%;">
+                <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Реферальная ссылка (для отслеживания):</div>
+                <div style="font-family: monospace; font-size: 12px; color: #667eea; word-break: break-all;">
+                    ${result.referral_link}
                 </div>
-            `;
-            
-            // Сохраняем ссылку в глобальной переменной
-            window.currentInviteLink = result.referral_link;
-            window.currentChannelLink = result.channel_invite_link;
-            
-            // Активируем кнопку копирования
-            document.getElementById('copyBtn').disabled = false;
-            
-            showMessage('✅ Ссылка создана! Теперь можно скопировать.', 'success');
-            
-        } else {
-            throw new Error(result.error || 'Неизвестная ошибка');
-        }
+                <div style="height: 1px; background: #e2e8f0; margin: 12px 0;"></div>
+                <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">⭐ ОСНОВНАЯ ССЫЛКА В КАНАЛ:</div>
+                <div style="font-family: monospace; font-size: 14px; color: #48bb78; word-break: break-all; font-weight: bold; padding: 10px; background: #f0fff4; border-radius: 8px; border: 1px solid #9ae6b4;">
+                    ${result.channel_invite_link}
+                </div>
+            </div>
+        `;
+        
+        // Сохраняем ссылку в глобальной переменной
+        window.currentInviteLink = result.referral_link;
+        window.currentChannelLink = result.channel_invite_link;
+        
+        // Активируем кнопку копирования
+        document.getElementById('copyBtn').disabled = false;
+        
+        showMessage('✅ Ссылка создана! Поделитесь ссылкой на канал с другом.', 'success');
         
     } catch (error) {
         console.error('❌ Ошибка генерации ссылки:', error);
@@ -5823,26 +5831,30 @@ async function showReferralStats() {
 
 // Обновленная функция копирования
 async function copyInviteLink() {
-    if (!window.currentInviteLink) {
-        showMessage('❌ Сначала создайте ссылку', 'error');
-        return;
-    }
-    
     try {
-        await navigator.clipboard.writeText(window.currentInviteLink);
-        showMessage('✅ Ссылка скопирована в буфер обмена!', 'success');
+        // Проверяем, есть ли уже сгенерированная ссылка
+        if (!window.currentChannelLink) {
+            // Если нет - сначала генерируем
+            await generateInviteLink();
+        }
         
-        // Также показываем инструкцию
-        setTimeout(() => {
-            alert(`🎯 Ссылка скопирована!\n\n📋 Инструкция для друга:\n1. Нажмите на ссылку\n2. Присоединитесь к каналу\n3. Зарегистрируйтесь в боте\n\nПосле этого вы оба получите +${INVITE_CONFIG.REFERRAL_BONUS}✨`);
-        }, 500);
+        if (window.currentChannelLink) {
+            await navigator.clipboard.writeText(window.currentChannelLink);
+            showMessage('✅ Ссылка на канал скопирована в буфер обмена!', 'success');
+            
+            // Показываем инструкцию
+            setTimeout(() => {
+                alert(`🎯 Ссылка на канал скопирована!\n\n📋 Инструкция для друга:\n1. Поделитесь этой ссылкой: ${window.currentChannelLink}\n2. Друг должен нажать на ссылку и присоединиться к каналу\n3. После вступления в канал, зарегистрироваться в боте\n\nПосле этого вы оба получите +10✨`);
+            }, 500);
+        } else {
+            showMessage('❌ Не удалось создать ссылку', 'error');
+        }
         
     } catch (error) {
         console.error('❌ Ошибка копирования:', error);
         showMessage('❌ Не удалось скопировать ссылку', 'error');
     }
 }
-
 // Конфигурация
 const INVITE_CONFIG = {
     REFERRAL_BONUS: 10
