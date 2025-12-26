@@ -894,7 +894,8 @@ async function initApp() {
 
 // ==================== ТЕЛЕГРАМ АВТОМАТИЗАЦИЯ ====================
 
-const TELEGRAM_BOT_TOKEN = "8414049381:AAFy0A__Wp4FmsH8buIoLBQDyEqqTwQpqaE";
+// server.js - найдите и исправьте эту строку:
+const TELEGRAM_BOT_TOKEN = process.env.BOT_TOKEN || "8414049381:AAFy0A__Wp4FmsH8buIoLBQDyEqqTwQpqaE";
 
 
 // Функция для создания инвайт-ссылки для канала
