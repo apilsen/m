@@ -1952,8 +1952,12 @@
         <li style="margin-bottom: 8px;">Скопируйте <strong>ссылку на канал</strong></li>
         <li style="margin-bottom: 8px;">Отправьте её другу в Telegram</li>
         <li>Друг должен нажать на ссылку и присоединиться к каналу</li>
-        <li>После вступления в канал - зарегистрироваться в боте</li>
+        <li>После вступления в канал - зарегистрироваться в боте командой /start</li>
+        <li>В поле "Введите ссылку" просто нажмите Далее (реферальный код уже в ссылке)</li>
     </ol>
+    <div style="background: #fff5f5; padding: 12px; border-radius: 8px; margin-top: 12px; border: 1px solid #fed7d7;">
+        <strong>⚠️ Важно:</strong> Друг должен быть <strong>новым пользователем</strong>, который еще не регистрировался в боте.
+    </div>
 </div>
         
         <div style="background: white; padding: 16px; border-radius: 12px; margin: 16px 0; word-break: break-all; border: 2px solid #e2e8f0;">
@@ -5690,39 +5694,29 @@ function filterPurchasesByType(type) {
 async function generateInviteLink() {
     try {
         console.log('🔗 Генерация ссылки приглашения...');
-        showMessage('⏳ Создаем ссылку...', 'info');
         
-        const response = await fetch(`/api/webapp/create-invite-link?userId=${currentUserId}`);
+        // Используем конфигурацию с сервера
+        const channelLink = "https://t.me/+qqsP8Ex5l29mMTE6"; // Ваш канал
+        const inviteLink = `${channelLink}?ref=${currentUserId}`;
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        window.currentInviteLink = inviteLink;
         
-        const result = await response.json();
-        
-        if (result.success) {
-            const inviteLinkElement = document.getElementById('inviteLink');
-            inviteLinkElement.innerHTML = `
-                <div style="width: 100%;">
-                    <div style="font-weight: 600; margin-bottom: 8px; color: #4a5568; font-size: 14px;">⭐ ССЫЛКА НА КАНАЛ:</div>
-                    <div style="font-family: monospace; font-size: 14px; color: #48bb78; word-break: break-all; font-weight: bold; padding: 12px; background: #f0fff4; border-radius: 8px; border: 1px solid #9ae6b4; margin-bottom: 12px;">
-                        ${result.channel_invite_link}
-                    </div>
-                    <div style="font-size: 12px; color: #718096; padding: 8px; background: #f7fafc; border-radius: 6px;">
-                        ⚡ В ссылке уже содержится ваш реферальный код
-                    </div>
+        const inviteLinkElement = document.getElementById('inviteLink');
+        inviteLinkElement.innerHTML = `
+            <div style="width: 100%;">
+                <div style="font-weight: 600; margin-bottom: 8px; color: #4a5568; font-size: 14px;">⭐ ССЫЛКА НА КАНАЛ:</div>
+                <div style="font-family: monospace; font-size: 14px; color: #48bb78; word-break: break-all; font-weight: bold; padding: 12px; background: #f0fff4; border-radius: 8px; border: 1px solid #9ae6b4; margin-bottom: 12px;">
+                    ${inviteLink}
                 </div>
-            `;
-            
-            // Сохраняем ссылку
-            window.currentInviteLink = result.channel_invite_link;
-            document.getElementById('copyBtn').disabled = false;
-            
-            showMessage('✅ Ссылка создана! Скопируйте и поделитесь.', 'success');
-            
-        } else {
-            throw new Error(result.error || 'Неизвестная ошибка');
-        }
+                <div style="font-size: 12px; color: #718096; padding: 8px; background: #f7fafc; border-radius: 6px;">
+                    ⚡ В ссылке уже содержится ваш реферальный код
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('copyBtn').disabled = false;
+        
+        showMessage('✅ Ссылка создана! Скопируйте и поделитесь.', 'success');
         
     } catch (error) {
         console.error('❌ Ошибка генерации ссылки:', error);
@@ -5831,6 +5825,22 @@ async function showReferralStats() {
         } else {
             throw new Error(result.error || 'Неизвестная ошибка');
         }
+
+            // Добавляем реферальный код
+            statsHTML += `
+                <div style="margin-top: 24px; padding: 16px; background: #f7fafc; border-radius: 12px;">
+                    <h4 style="margin-bottom: 8px; color: #4a5568;">📋 Ваш реферальный код:</h4>
+                    <div style="font-family: monospace; font-size: 18px; font-weight: bold; color: #48bb78; padding: 12px; background: white; border-radius: 8px; text-align: center; border: 2px solid #9ae6b4;">
+                        ${currentUserId}
+                    </div>
+                    <div style="font-size: 12px; color: #718096; margin-top: 8px; text-align: center;">
+                        Добавьте ?ref=${currentUserId} к любой ссылке на канал
+                    </div>
+                </div>
+            `;
+            
+            statsContent.innerHTML = statsHTML;
+            showScreen('referralStatsScreen');
         
     } catch (error) {
         console.error('❌ Ошибка загрузки статистики:', error);
