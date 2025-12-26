@@ -2493,9 +2493,9 @@ app.post('/api/users/change-role', (req, res) => {
 
 app.post('/api/users/register', (req, res) => {
     try {
-        const { userId, firstName, username, roleId, characterId } = req.body;
+        const { userId, firstName, username, roleId, characterId, ref } = req.body;
         
-        console.log('📝 Регистрация пользователя:', { userId, firstName, username, roleId, characterId });
+        console.log('📝 Регистрация пользователя:', { userId, firstName, username, roleId, characterId, ref });
         
         if (!userId || !firstName || !roleId) {
             return res.status(400).json({ 
@@ -2591,6 +2591,30 @@ app.post('/api/users/register', (req, res) => {
                 console.log(`✅ Пользователь ${userId} добавлен как админ`);
             }
         }
+
+// ============ ВСТАВЛЯТЬ ЗДЕСЬ ============
+        // ПОСЛЕ успешной регистрации обрабатываем реферала, если есть ref
+        if (ref) {
+            console.log(`🔗 Обработка реферала для пользователя ${userId}, ref=${ref}`);
+            
+            // Используем setTimeout чтобы не блокировать ответ
+            setTimeout(async () => {
+                try {
+                    const referralResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/webapp/handle-referral?ref=${ref}&userId=${userId}`);
+                    if (!referralResponse.ok) {
+                        console.error('Ошибка при вызове реферального API');
+                        return;
+                    }
+                    
+                    const referralResult = await referralResponse.json();
+                    console.log('Результат обработки реферала:', referralResult);
+                    
+                } catch (error) {
+                    console.error('Ошибка обработки реферала:', error);
+                }
+            }, 100);
+        }
+        // ============ КОНЕЦ ВСТАВКИ ============
         
         console.log('✅ Успешная регистрация:', {
             id: user.user_id,
@@ -3054,30 +3078,23 @@ app.get('/api/webapp/create-invite-link', (req, res) => {
             });
         }
 
-        // Создаем реферальную ссылку (замените YOUR_BOT_USERNAME на реальный username бота)
-        const referralCode = Buffer.from(`ref_${userId}_${Date.now()}`).toString('base64url');
-        const referralLink = `https://t.me/@AkademyEdisBot?start=${referralCode}`;
-        
-        // Прямая ссылка на канал с реферальным ID
+        // Создаем ссылку с реферальным параметром
         const channelInviteLink = `${INVITE_CONFIG.CHANNEL_INVITE_LINK}?ref=${userId}`;
         
-        // Сохраняем реферальный код
-        if (!user.referrals) user.referrals = [];
-        user.referral_code = referralCode;
-        user.referral_link = referralLink;
+        // Обновляем пользователя
         user.channel_invite_link = channelInviteLink;
         user.last_active = new Date().toISOString();
 
         res.json({
             success: true,
-            referral_link: referralLink,
             channel_invite_link: channelInviteLink,
             message: "Ссылка создана! Поделитесь ею с друзьями.",
             instructions: [
-                "1. Поделитесь ссылкой с другом",
-                "2. Друг должен нажать на ссылку и присоединиться к каналу",
-                "3. После вступления друга вы получите +10✨",
-                "4. Ваш друг также получит +10✨ бонуса"
+                "1. Скопируйте ссылку на канал",
+                "2. Поделитесь ссылкой с другом",
+                "3. Друг должен присоединиться к каналу",
+                "4. После вступления друга вы получите +10✨",
+                "5. Ваш друг также получит +10✨ бонуса"
             ]
         });
 
@@ -3090,42 +3107,31 @@ app.get('/api/webapp/create-invite-link', (req, res) => {
     }
 });
 
-// ✅ Эндпоинт для обработки реферального входа
-app.get('/api/webapp/handle-referral/:referralCode', (req, res) => {
+// ✅ УПРОЩЕННАЯ ОБРАБОТКА РЕФЕРАЛОВ
+app.get('/api/webapp/handle-referral', (req, res) => {
     try {
-        const referralCode = req.params.referralCode;
-        const newUserId = parseInt(req.query.userId);
+        const ref = req.query.ref; // Получаем ref из параметра ссылки
+        const userId = parseInt(req.query.userId); // ID нового пользователя
         
-        console.log('👥 Обработка реферала:', { referralCode, newUserId });
+        console.log('👥 Обработка реферала:', { ref, userId });
 
-        if (!referralCode || !newUserId) {
+        if (!ref || !userId) {
             return res.json({ 
                 success: false,
-                error: 'Invalid referral data' 
+                error: 'Недостаточно данных' 
             });
         }
 
-        // Декодируем реферальный код
-        const decoded = Buffer.from(referralCode, 'base64url').toString();
-        const match = decoded.match(/ref_(\d+)_(\d+)/);
-        
-        if (!match) {
-            return res.json({ 
-                success: false,
-                error: 'Invalid referral code' 
-            });
-        }
-
-        const referrerId = parseInt(match[1]);
+        const referrerId = parseInt(ref);
         
         // Проверяем существующих пользователей
         const referrer = db.users.find(u => u.user_id === referrerId);
-        const newUser = db.users.find(u => u.user_id === newUserId);
+        const newUser = db.users.find(u => u.user_id === userId);
         
         if (!referrer || !newUser) {
             return res.json({ 
                 success: false,
-                error: 'User not found' 
+                error: 'Пользователь не найден' 
             });
         }
 
@@ -3133,7 +3139,7 @@ app.get('/api/webapp/handle-referral/:referralCode', (req, res) => {
         const existingReferral = db.activities.find(a => 
             a.user_id === referrerId && 
             a.activity_type === 'referral_bonus' &&
-            a.description && a.description.includes(`Реферал: ${newUserId}`)
+            a.description && a.description.includes(`Реферал: ${userId}`)
         );
 
         if (existingReferral) {
@@ -3145,16 +3151,16 @@ app.get('/api/webapp/handle-referral/:referralCode', (req, res) => {
 
         // Начисляем бонус пригласившему
         addSparks(referrerId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_bonus', 
-            `Пригласил друга (ID: ${newUserId}). Реферал присоединился к каналу`);
+            `Пригласил друга (ID: ${userId}). Реферал присоединился к каналу`);
         
         // Начисляем бонус новому пользователю
-        addSparks(newUserId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_welcome_bonus',
+        addSparks(userId, INVITE_CONFIG.REFERRAL_BONUS, 'referral_welcome_bonus',
             'Бонус за присоединение по реферальной ссылке');
 
         // Записываем реферальную связь
         if (!referrer.referrals) referrer.referrals = [];
         referrer.referrals.push({
-            user_id: newUserId,
+            user_id: userId,
             date: new Date().toISOString(),
             bonus_received: true
         });
@@ -3213,8 +3219,13 @@ app.get('/api/webapp/referral-stats/:userId', (req, res) => {
         res.json({
             success: true,
             stats: referralStats,
-            referral_link: user.referral_link,
-            channel_invite_link: user.channel_invite_link || INVITE_CONFIG.CHANNEL_INVITE_LINK
+            channel_invite_link: user.channel_invite_link || `${INVITE_CONFIG.CHANNEL_INVITE_LINK}?ref=${userId}`,
+            referral_instructions: [
+                `1. Поделитесь ссылкой: ${INVITE_CONFIG.CHANNEL_INVITE_LINK}?ref=${userId}`,
+                "2. Друг должен вступить в канал по ссылке",
+                "3. После вступления - зарегистрироваться в боте",
+                `4. Вы оба получите +${INVITE_CONFIG.REFERRAL_BONUS}✨`
+            ]
         });
 
     } catch (error) {
