@@ -5692,49 +5692,42 @@ async function generateInviteLink() {
         console.log('🔗 Генерация ссылки приглашения...');
         showMessage('⏳ Создаем ссылку...', 'info');
         
-        // Создаем ссылку на ваш канал
-        const channelInviteLink = "https://t.me/+qqsP8Ex5l29mMTE6";
-        
-        // Создаем реферальную ссылку для бота
-        const referralCode = Buffer.from(`ref_${currentUserId}_${Date.now()}`).toString('base64url');
-        const referralLink = `https://t.me/@AkademyEdisBot?start=${referralCode}`;
+        // Прямая ссылка на ваш канал с реферальным ID
+        const channelInviteLink = `https://t.me/+qqsP8Ex5l29mMTE6?ref=${currentUserId}`;
         
         // Сохраняем данные для пользователя
         const result = {
             success: true,
-            referral_link: referralLink,
             channel_invite_link: channelInviteLink,
             instructions: [
-                "1. Поделитесь ссылкой на канал с другом",
-                "2. Друг должен вступить в канал по ссылке",
-                "3. После вступления вы оба получите +10✨",
-                "4. Бонус начисляется автоматически после регистрации друга"
+                "1. Нажмите 'Копировать ссылку'",
+                "2. Отправьте ссылку другу в Telegram",
+                "3. Друг должен нажать на ссылку и присоединиться к каналу",
+                "4. После вступления в канал - зарегистрироваться в боте через команду /start",
+                "5. Вы оба получите +10✨ бонуса"
             ]
         };
         
         const inviteLinkElement = document.getElementById('inviteLink');
         inviteLinkElement.innerHTML = `
             <div style="width: 100%;">
-                <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">Реферальная ссылка (для отслеживания):</div>
-                <div style="font-family: monospace; font-size: 12px; color: #667eea; word-break: break-all;">
-                    ${result.referral_link}
-                </div>
-                <div style="height: 1px; background: #e2e8f0; margin: 12px 0;"></div>
-                <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">⭐ ОСНОВНАЯ ССЫЛКА В КАНАЛ:</div>
+                <div style="font-weight: 600; margin-bottom: 4px; color: #4a5568; font-size: 12px;">⭐ ССЫЛКА НА КАНАЛ С ВАШИМ РЕФЕРАЛЬНЫМ КОДОМ:</div>
                 <div style="font-family: monospace; font-size: 14px; color: #48bb78; word-break: break-all; font-weight: bold; padding: 10px; background: #f0fff4; border-radius: 8px; border: 1px solid #9ae6b4;">
                     ${result.channel_invite_link}
+                </div>
+                <div style="margin-top: 12px; font-size: 11px; color: #718096;">
+                    ⚡ В ссылке уже содержится ваш реферальный код: <strong>ref=${currentUserId}</strong>
                 </div>
             </div>
         `;
         
         // Сохраняем ссылку в глобальной переменной
-        window.currentInviteLink = result.referral_link;
-        window.currentChannelLink = result.channel_invite_link;
+        window.currentInviteLink = result.channel_invite_link;
         
         // Активируем кнопку копирования
         document.getElementById('copyBtn').disabled = false;
         
-        showMessage('✅ Ссылка создана! Поделитесь ссылкой на канал с другом.', 'success');
+        showMessage('✅ Ссылка на канал создана!', 'success');
         
     } catch (error) {
         console.error('❌ Ошибка генерации ссылки:', error);
@@ -5742,6 +5735,31 @@ async function generateInviteLink() {
     }
 }
 
+async function copyInviteLink() {
+    try {
+        // Проверяем, есть ли уже сгенерированная ссылка
+        if (!window.currentInviteLink) {
+            // Если нет - сначала генерируем
+            await generateInviteLink();
+        }
+        
+        if (window.currentInviteLink) {
+            await navigator.clipboard.writeText(window.currentInviteLink);
+            showMessage('✅ Ссылка на канал скопирована в буфер обмена!', 'success');
+            
+            // Показываем инструкцию
+            setTimeout(() => {
+                alert(`🎯 Ссылка на канал скопирована!\n\n📋 Инструкция для друга:\n1. Отправьте эту ссылку другу:\n${window.currentInviteLink}\n\n2. Друг должен:\n• Нажать на ссылку\n• Присоединиться к каналу\n• Зарегистрироваться в боте командой /start\n\n3. После регистрации друга вы оба получите +10✨`);
+            }, 500);
+        } else {
+            showMessage('❌ Не удалось создать ссылку', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка копирования:', error);
+        showMessage('❌ Не удалось скопировать ссылку', 'error');
+    }
+}
 async function showReferralStats() {
     try {
         console.log('📊 Загрузка статистики приглашений...');
@@ -5829,32 +5847,7 @@ async function showReferralStats() {
     }
 }
 
-// Обновленная функция копирования
-async function copyInviteLink() {
-    try {
-        // Проверяем, есть ли уже сгенерированная ссылка
-        if (!window.currentChannelLink) {
-            // Если нет - сначала генерируем
-            await generateInviteLink();
-        }
-        
-        if (window.currentChannelLink) {
-            await navigator.clipboard.writeText(window.currentChannelLink);
-            showMessage('✅ Ссылка на канал скопирована в буфер обмена!', 'success');
-            
-            // Показываем инструкцию
-            setTimeout(() => {
-                alert(`🎯 Ссылка на канал скопирована!\n\n📋 Инструкция для друга:\n1. Поделитесь этой ссылкой: ${window.currentChannelLink}\n2. Друг должен нажать на ссылку и присоединиться к каналу\n3. После вступления в канал, зарегистрироваться в боте\n\nПосле этого вы оба получите +10✨`);
-            }, 500);
-        } else {
-            showMessage('❌ Не удалось создать ссылку', 'error');
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка копирования:', error);
-        showMessage('❌ Не удалось скопировать ссылку', 'error');
-    }
-}
+
 // Конфигурация
 const INVITE_CONFIG = {
     REFERRAL_BONUS: 10
