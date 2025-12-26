@@ -1,35 +1,21 @@
-// ==================== ИМПОРТЫ ====================
 import express from 'express';
 import TelegramBot from 'node-telegram-bot-api';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import compression from 'compression';
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readdirSync, existsSync, mkdirSync, createWriteStream, createReadStream } from 'fs';
-import { promises as fs } from 'fs';
+import { readdirSync, existsSync } from 'fs';
+import dotenv from 'dotenv';
+
+// ==================== СИСТЕМА УПРАВЛЕНИЯ ПРОЦЕССАМИ ====================
 import { exec } from 'child_process';
 import { promisify } from 'util';
+const execAsync = promisify(exec);
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// ДОБАВЬТЕ ПОСЛЕ ЭТОГО БЛОКА:
-// ==================== ДИРЕКТОРИИ ДЛЯ ЗАГРУЗКИ ====================
-const UPLOAD_DIR = join(__dirname, 'uploads');
-const TEMP_DIR = join(__dirname, 'temp');
-
-// Создаем директории если их нет
-try {
-    if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
-    if (!existsSync(TEMP_DIR)) mkdirSync(TEMP_DIR, { recursive: true });
-    console.log('📁 Директории для загрузок созданы');
-} catch (error) {
-    console.error('❌ Ошибка создания директорий:', error);
-}
 
 // ✅ УЛУЧШЕННАЯ СИСТЕМА ЗАЩИТЫ ОТ ДУБЛИРОВАНИЯ
 const pendingTransactions = new Map();
@@ -894,8 +880,7 @@ async function initApp() {
 
 // ==================== ТЕЛЕГРАМ АВТОМАТИЗАЦИЯ ====================
 
-// server.js - найдите и исправьте эту строку:
-const TELEGRAM_BOT_TOKEN = process.env.BOT_TOKEN || "8414049381:AAFy0A__Wp4FmsH8buIoLBQDyEqqTwQpqaE";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 
 // Функция для создания инвайт-ссылки для канала
@@ -919,165 +904,14 @@ async function createChannelInviteLink(channelId) {
     }
 }
 
-// ==================== НАСТРОЙКИ ДЛЯ БОЛЬШИХ ФАЙЛОВ (ДО 2GB) ====================
+// Увеличены лимиты для больших файлов (3GB)
+app.use(express.json({ limit: '3gb' }));
+app.use(express.urlencoded({ limit: '3gb', extended: true }));
+app.use(cors());
 
-// Увеличенные лимиты для Express
-app.use(express.json({ 
-    limit: '2gb',
-    verify: (req, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
-app.use(express.urlencoded({ 
-    limit: '2gb', 
-    extended: true 
-}));
-
-// Дополнительные настройки для body-parser
-app.use(bodyParser.json({ 
-    limit: '2gb',
-    verify: (req, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
-app.use(bodyParser.urlencoded({ 
-    limit: '2gb', 
-    extended: true 
-}));
-
-// Middleware для обработки больших файлов с прогрессом
-app.use((req, res, next) => {
-    // Увеличиваем таймауты для больших файлов
-    req.setTimeout(60 * 60 * 1000); // 60 минут
-    res.setTimeout(60 * 60 * 1000); // 60 минут
-    
-    // Отключаем стандартный парсер для multipart/form-data
-    if (req.headers['content-type'] && 
-        req.headers['content-type'].includes('multipart/form-data')) {
-        return next();
-    }
-    
-    console.log(`⏰ Установлены таймауты для ${req.method} ${req.url}`);
-    next();
-});
-
-// Глобальные настройки Node.js для больших файлов
-process.env.UV_THREADPOOL_SIZE = 128; // Увеличиваем пул потоков
-process.env.NODE_OPTIONS = '--max-old-space-size=4096'; // 4GB памяти для Node.js
-
-// Увеличиваем максимальный размер буфера
-require('buffer').constants.MAX_LENGTH = 2 * 1024 * 1024 * 1024; // 2GB
-
-// ==================== СТРИМИНГ ФАЙЛОВ ====================
-
-// Middleware для стриминга больших файлов
-const stream = require('stream');
-
-// Эндпоинт для стриминга видео с оптимизацией памяти
-app.post('/api/upload/video', (req, res) => {
-    console.log('🎬 Начало загрузки большого видео файла');
-    
-    let totalBytes = 0;
-    let chunks = [];
-    let chunkCount = 0;
-    
-    // Используем стриминг для обработки файла
-    req.on('data', (chunk) => {
-        chunkCount++;
-        totalBytes += chunk.length;
-        chunks.push(chunk);
-        
-        // Периодически очищаем чанки для экономии памяти
-        if (chunkCount % 100 === 0) {
-            console.log(`📊 Прогресс: ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
-            
-            // Очищаем старые чанки если их слишком много
-            if (chunks.length > 50) {
-                chunks = chunks.slice(-20); // Оставляем только последние 20 чанков
-            }
-        }
-        
-        // Проверяем лимит размера (2GB)
-        if (totalBytes > 2 * 1024 * 1024 * 1024) {
-            req.destroy();
-            return res.status(413).json({
-                success: false,
-                error: 'Файл слишком большой. Максимальный размер: 2GB'
-            });
-        }
-    });
-    
-    req.on('end', () => {
-        try {
-            const buffer = Buffer.concat(chunks);
-            
-            // Очищаем чанки для освобождения памяти
-            chunks = [];
-            
-            console.log(`✅ Видео загружено: ${(buffer.length / (1024 * 1024)).toFixed(2)} MB`);
-            
-            // Здесь можно сохранить файл или обработать его
-            
-            res.json({
-                success: true,
-                message: `Видео успешно загружено (${(buffer.length / (1024 * 1024)).toFixed(2)} MB)`,
-                size: buffer.length
-            });
-            
-        } catch (error) {
-            console.error('❌ Ошибка обработки видео:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Ошибка обработки видео'
-            });
-        }
-    });
-    
-    req.on('error', (error) => {
-        console.error('❌ Ошибка загрузки:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка загрузки файла'
-        });
-    });
-});
-
-// ==================== ОПТИМИЗАЦИЯ ПАМЯТИ ====================
-
-// Функция для очистки памяти
-function cleanupMemory() {
-    if (global.gc) {
-        console.log('🧹 Запуск сборки мусора...');
-        global.gc();
-    }
-    
-    // Очищаем старые завершенные транзакции
-    const now = Date.now();
-    for (const [key, value] of completedTransactions.entries()) {
-        if (now - value.timestamp > 10 * 60 * 1000) { // 10 минут вместо 5
-            completedTransactions.delete(key);
-        }
-    }
-    
-    // Очищаем старые активности
-    if (db.activities.length > 10000) {
-        db.activities = db.activities.slice(-5000);
-        console.log('🧹 Удалены старые активности для экономии памяти');
-    }
-}
-
-// Запускаем очистку памяти каждые 5 минут
-setInterval(cleanupMemory, 5 * 60 * 1000);
-
-// Мониторинг использования памяти
-setInterval(() => {
-    const used = process.memoryUsage();
-    console.log('📊 Использование памяти:');
-    console.log(`  RSS: ${Math.round(used.rss / 1024 / 1024)} MB`);
-    console.log(`  Heap Total: ${Math.round(used.heapTotal / 1024 / 1024)} MB`);
-    console.log(`  Heap Used: ${Math.round(used.heapUsed / 1024 / 1024)} MB`);
-    console.log(`  External: ${Math.round(used.external / 1024 / 1024)} MB`);
-}, 60000); // Каждую минуту
+// Дополнительные настройки для body-parser (если используется)
+app.use(bodyParser.json({ limit: '3gb' }));
+app.use(bodyParser.urlencoded({ limit: '3gb', extended: true }));
 
 
 // ==================== СТАТИЧЕСКИЕ ФАЙЛЫ ====================
@@ -6268,331 +6102,6 @@ async function setupWebAppButton() {
     }
 }
 
-// ==================== СИСТЕМА ЧАНКОВОЙ ЗАГРУЗКИ ВИДЕО ====================
-
-// Функция для сборки чанков
-async function assembleChunks(userId, fileName, totalChunks, fileType) {
-    try {
-        const userTempDir = join(TEMP_DIR, `user_${userId}`);
-        const finalFileName = `${Date.now()}_${fileName}`;
-        const finalPath = join(UPLOAD_DIR, finalFileName);
-
-        console.log(`🔧 Начинаем сборку файла из ${totalChunks} чанков...`);
-
-        // Создаем write stream для финального файла
-        const writeStream = createWriteStream(finalPath);
-
-        // Читаем и собираем чанки по порядку
-        for (let i = 1; i <= totalChunks; i++) {
-            const chunkPath = join(userTempDir, `${fileName}.part${i}`);
-            
-            // Проверяем существование чанка
-            if (!existsSync(chunkPath)) {
-                throw new Error(`Чанк ${i} не найден: ${chunkPath}`);
-            }
-
-            // Читаем чанк и добавляем в файл
-            const chunkData = await fs.readFile(chunkPath);
-            writeStream.write(chunkData);
-            
-            console.log(`🔗 Добавлен чанк ${i}/${totalChunks}`);
-            
-            // Удаляем временный чанк
-            await fs.unlink(chunkPath);
-            
-            // Небольшая пауза для избежания перегрузки
-            await new Promise(resolve => setTimeout(resolve, 50));
-        }
-
-        writeStream.end();
-
-        // Ждем завершения записи
-        await new Promise((resolve, reject) => {
-            writeStream.on('finish', resolve);
-            writeStream.on('error', reject);
-        });
-
-        const finalSize = (await fs.stat(finalPath)).size;
-        console.log(`✅ Файл собран: ${finalPath}`);
-        console.log(`📊 Размер: ${(finalSize / (1024 * 1024)).toFixed(2)} MB`);
-
-        return {
-            path: finalPath,
-            size: finalSize,
-            fileName: finalFileName,
-            originalName: fileName
-        };
-
-    } catch (error) {
-        console.error('❌ Ошибка сборки чанков:', error);
-        throw error;
-    }
-}
-
-// Очистка временных файлов
-async function cleanupTempFiles(directory) {
-    try {
-        if (!existsSync(directory)) return;
-        
-        const files = await fs.readdir(directory);
-        const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24 часа
-
-        for (const file of files) {
-            const filePath = join(directory, file);
-            const stats = await fs.stat(filePath);
-            
-            if (now - stats.mtimeMs > maxAge) {
-                await fs.unlink(filePath);
-                console.log(`🗑️ Удален старый временный файл: ${file}`);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Ошибка очистки временных файлов:', error);
-    }
-}
-
-// Эндпоинт для чанковой загрузки видео
-app.post('/api/upload/chunked-video', async (req, res) => {
-    console.log('📦 Запрос на чанковую загрузку видео');
-    
-    try {
-        const {
-            userId,
-            fileName,
-            totalChunks,
-            currentChunk,
-            totalSize,
-            chunkSize,
-            fileType = 'video'
-        } = req.query;
-
-        console.log(`📊 Параметры: ${JSON.stringify({
-            userId, fileName, totalChunks, currentChunk,
-            totalSize: totalSize ? `${(totalSize / (1024 * 1024)).toFixed(2)} MB` : 'не указано',
-            chunkSize: chunkSize ? `${(chunkSize / 1024 / 1024).toFixed(2)} MB` : 'не указано'
-        })}`);
-
-        // Валидация
-        if (!userId || !fileName || !totalChunks || !currentChunk) {
-            console.error('❌ Недостаточно параметров');
-            return res.status(400).json({
-                success: false,
-                error: 'Недостаточно параметров'
-            });
-        }
-
-        // Создаем директорию для временных файлов
-        const userTempDir = join(TEMP_DIR, `user_${userId}`);
-        if (!existsSync(userTempDir)) {
-            await fs.mkdir(userTempDir, { recursive: true });
-        }
-
-        // Получаем данные чанка
-        const chunks = [];
-        let totalLength = 0;
-        
-        req.on('data', (chunk) => {
-            chunks.push(chunk);
-            totalLength += chunk.length;
-        });
-
-        req.on('end', async () => {
-            try {
-                // Объединяем чанки
-                const buffer = Buffer.concat(chunks, totalLength);
-                
-                // Сохраняем чанк
-                const chunkFileName = join(userTempDir, `${fileName}.part${currentChunk}`);
-                await fs.writeFile(chunkFileName, buffer);
-
-                console.log(`✅ Чанк ${currentChunk}/${totalChunks} сохранен: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
-
-                // Проверяем, все ли чанки загружены
-                const uploadedChunks = await fs.readdir(userTempDir);
-                const currentFileChunks = uploadedChunks.filter(f => 
-                    f.startsWith(`${fileName}.part`) || 
-                    f.startsWith(encodeURIComponent(fileName) + '.part')
-                );
-
-                console.log(`📋 Загружено чанков: ${currentFileChunks.length} из ${totalChunks}`);
-
-                if (currentFileChunks.length === parseInt(totalChunks)) {
-                    console.log(`🎉 Все чанки загружены для файла ${fileName}`);
-                    
-                    try {
-                        // Собираем файл из чанков
-                        const assembledFile = await assembleChunks(userId, fileName, parseInt(totalChunks), fileType);
-                        
-                        // Очищаем временные файлы
-                        await cleanupTempFiles(userTempDir);
-
-                        return res.json({
-                            success: true,
-                            message: 'Файл полностью загружен и собран',
-                            completed: true,
-                            fileName: fileName,
-                            finalPath: assembledFile.path,
-                            finalFileName: assembledFile.fileName,
-                            size: assembledFile.size
-                        });
-                    } catch (assembleError) {
-                        console.error('❌ Ошибка сборки файла:', assembleError);
-                        return res.status(500).json({
-                            success: false,
-                            error: 'Ошибка сборки файла',
-                            details: assembleError.message
-                        });
-                    }
-                }
-
-                res.json({
-                    success: true,
-                    message: `Чанк ${currentChunk}/${totalChunks} загружен`,
-                    completed: false,
-                    uploadedChunks: currentFileChunks.length,
-                    totalChunks: parseInt(totalChunks),
-                    nextChunk: parseInt(currentChunk) + 1
-                });
-
-            } catch (error) {
-                console.error('❌ Ошибка обработки чанка:', error);
-                res.status(500).json({
-                    success: false,
-                    error: 'Ошибка обработки чанка',
-                    details: error.message
-                });
-            }
-        });
-
-        req.on('error', (error) => {
-            console.error('❌ Ошибка получения данных:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Ошибка получения данных'
-            });
-        });
-
-    } catch (error) {
-        console.error('❌ Общая ошибка загрузки:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка загрузки файла'
-        });
-    }
-});
-
-// Эндпоинт для проверки прогресса загрузки
-app.get('/api/upload/progress/:userId/:fileName', async (req, res) => {
-    try {
-        const { userId, fileName } = req.params;
-        const userTempDir = join(TEMP_DIR, `user_${userId}`);
-
-        if (!existsSync(userTempDir)) {
-            return res.json({
-                uploadedChunks: 0,
-                totalChunks: 0,
-                progress: 0
-            });
-        }
-
-        const files = await fs.readdir(userTempDir);
-        const uploadedChunks = files.filter(f => 
-            f.startsWith(`${fileName}.part`) || 
-            f.startsWith(encodeURIComponent(fileName) + '.part')
-        ).length;
-
-        res.json({
-            uploadedChunks: uploadedChunks,
-            progress: uploadedChunks > 0 ? Math.round((uploadedChunks / 100) * 100) : 0
-        });
-
-    } catch (error) {
-        console.error('❌ Ошибка проверки прогресса:', error);
-        res.status(500).json({ error: 'Ошибка проверки прогресса' });
-    }
-});
-
-// Эндпоинт для отмены загрузки
-app.delete('/api/upload/cancel/:userId/:fileName', async (req, res) => {
-    try {
-        const { userId, fileName } = req.params;
-        const userTempDir = join(TEMP_DIR, `user_${userId}`);
-
-        if (existsSync(userTempDir)) {
-            const files = await fs.readdir(userTempDir);
-            const chunksToDelete = files.filter(f => 
-                f.startsWith(`${fileName}.part`) || 
-                f.startsWith(encodeURIComponent(fileName) + '.part')
-            );
-
-            for (const file of chunksToDelete) {
-                await fs.unlink(join(userTempDir, file));
-                console.log(`🗑️ Удален чанк: ${file}`);
-            }
-
-            console.log(`✅ Загрузка файла ${fileName} отменена, удалено ${chunksToDelete.length} чанков`);
-        }
-
-        res.json({
-            success: true,
-            message: 'Загрузка отменена',
-            deletedChunks: chunksToDelete ? chunksToDelete.length : 0
-        });
-
-    } catch (error) {
-        console.error('❌ Ошибка отмены загрузки:', error);
-        res.status(500).json({ error: 'Ошибка отмены загрузки' });
-    }
-});
-
-// Тестовый эндпоинт для больших файлов
-app.post('/api/upload/test-large-file', async (req, res) => {
-    console.log('🧪 Тест загрузки большого файла');
-    
-    let totalBytes = 0;
-    const chunks = [];
-    
-    req.on('data', (chunk) => {
-        totalBytes += chunk.length;
-        chunks.push(chunk);
-        
-        // Логируем прогресс каждые 100MB
-        if (totalBytes % (100 * 1024 * 1024) === 0) {
-            console.log(`📊 Прогресс: ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
-        }
-    });
-    
-    req.on('end', () => {
-        console.log(`✅ Тест завершен: получено ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
-        
-        // Очищаем память
-        chunks.length = 0;
-        
-        res.json({
-            success: true,
-            message: `Тест успешен: обработано ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`,
-            size: totalBytes,
-            maxMemory: `${(process.memoryUsage().heapTotal / 1024 / 1024).toFixed(2)} MB`
-        });
-    });
-    
-    req.on('error', (error) => {
-        console.error('❌ Ошибка теста:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка теста загрузки'
-        });
-    });
-});
-
-// Запускаем очистку временных файлов каждые 6 часов
-setInterval(() => {
-    cleanupTempFiles(TEMP_DIR).catch(console.error);
-}, 6 * 60 * 60 * 1000);
-
-console.log('✅ Система чанковой загрузки инициализирована');
-
 // ==================== ЗАПУСК СЕРВЕРА ====================
 
 // Запуск сервера с управлением процессами
@@ -6632,4 +6141,4 @@ async function startServer() {
 startServer().catch(error => {
     console.error('💥 Критическая ошибка запуска:', error);
     process.exit(1);
-}); 
+});
