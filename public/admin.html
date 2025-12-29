@@ -2691,107 +2691,109 @@
         });
     }
 
-    async function saveRole() {
-        const name = document.getElementById('roleName').value.trim();
-        const description = document.getElementById('roleDescription').value.trim();
-        const icon = document.getElementById('roleIcon').value.trim();
-        const is_active = document.getElementById('roleActive').checked;
-        
-        if (!name) {
-            alert('Введите название роли');
-            return;
-        }
-        
-        // Собираем выбранные кнопки
-        const available_buttons = [];
-        document.querySelectorAll('#roleButtons .button-checkbox input:checked').forEach(checkbox => {
-            available_buttons.push(checkbox.id.replace('btn_', ''));
-        });
-        
-        // ✅ ОБЯЗАТЕЛЬНЫЕ КНОПКИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
-        const mandatoryButtons = ['profile', 'activities'];
-        mandatoryButtons.forEach(btn => {
-            if (!available_buttons.includes(btn)) {
-                available_buttons.push(btn);
-            }
-        });
-        
-        try {
-            const roleData = {
-                name,
-                description,
-                icon,
-                available_buttons, // ✅ Теперь кнопки правильно сохраняются
-                is_active
-            };
-            
-            console.log('💾 Сохраняем роль с кнопками:', available_buttons);
-            
-            let response;
-            let roleId;
-            
-            if (currentEditingId) {
-                roleId = currentEditingId;
-                response = await fetch(`/api/admin/roles/${currentEditingId}?userId=${currentUserId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(roleData)
-                });
-            } else {
-                response = await fetch(`/api/admin/roles?userId=${currentUserId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(roleData)
-                });
-                
-                const result = await response.json();
-                roleId = result.role?.id || result.roleId;
-            }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                showMessage('✅ Роль успешно сохранена', 'success');
-                hideRoleForm();
-                loadRoles();
-                
-                // ✅ ОБНОВЛЯЕМ КНОПКИ У ВСЕХ ПОЛЬЗОВАТЕЛЕЙ С ЭТОЙ РОЛЬЮ
-                if (roleId) {
-                    await updateUserButtonsForRole(roleId, available_buttons);
-                }
-            } else {
-                showMessage(`❌ ${result.error}`, 'error');
-            }
-            
-        } catch (error) {
-            console.error('❌ Ошибка сохранения роли:', error);
-            showMessage('❌ Ошибка сохранения роли: ' + error.message, 'error');
-        }
+   async function saveRole() {
+    const name = document.getElementById('roleName').value.trim();
+    const description = document.getElementById('roleDescription').value.trim();
+    const icon = document.getElementById('roleIcon').value.trim();
+    const is_active = document.getElementById('roleActive').checked;
+    
+    if (!name) {
+        alert('Введите название роли');
+        return;
     }
-
-    // ✅ ФУНКЦИЯ ОБНОВЛЕНИЯ КНОПОК У ПОЛЬЗОВАТЕЛЕЙ
-    async function updateUserButtonsForRole(roleId, available_buttons) {
-        try {
-            console.log(`🔄 Обновление кнопок для роли ${roleId}:`, available_buttons);
-            
-            const response = await fetch(`/api/admin/roles/${roleId}/update-users?userId=${currentUserId}`, {
+    
+    // Собираем выбранные кнопки
+    const available_buttons = [];
+    document.querySelectorAll('#roleButtons .button-checkbox input:checked').forEach(checkbox => {
+        available_buttons.push(checkbox.id.replace('btn_', ''));
+    });
+    
+    // ✅ ОБЯЗАТЕЛЬНЫЕ КНОПКИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
+    const mandatoryButtons = ['profile', 'activities'];
+    mandatoryButtons.forEach(btn => {
+        if (!available_buttons.includes(btn)) {
+            available_buttons.push(btn);
+        }
+    });
+    
+    try {
+        const roleData = {
+            name,
+            description,
+            icon,
+            available_buttons, // ✅ Теперь кнопки правильно сохраняются
+            is_active
+        };
+        
+        console.log('💾 Сохраняем роль с кнопками:', available_buttons);
+        
+        let response;
+        let roleId = currentEditingId;
+        
+        if (currentEditingId) {
+            response = await fetch(`/api/admin/roles/${currentEditingId}?userId=${currentUserId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(roleData)
+            });
+        } else {
+            response = await fetch(`/api/admin/roles?userId=${currentUserId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ available_buttons })
+                body: JSON.stringify(roleData)
             });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                console.log(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`);
-                showMessage(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`, 'success');
-            } else {
-                console.error('❌ Ошибка обновления кнопок пользователей:', result.error);
-            }
-        } catch (error) {
-            console.error('❌ Ошибка обновления кнопок пользователей:', error);
         }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage('✅ Роль успешно сохранена', 'success');
+            hideRoleForm();
+            loadRoles();
+            
+            // ✅ ОБНОВЛЯЕМ КНОПКИ У ВСЕХ ПОЛЬЗОВАТЕЛЕЙ С ЭТОЙ РОЛЬЮ
+            roleId = result.role?.id || result.roleId || currentEditingId;
+            if (roleId) {
+                await updateUserButtonsForRole(roleId, available_buttons);
+            }
+        } else {
+            showMessage(`❌ ${result.error}`, 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения роли:', error);
+        showMessage('❌ Ошибка сохранения роли: ' + error.message, 'error');
     }
+}
+
+   // ✅ ФУНКЦИЯ ОБНОВЛЕНИЯ КНОПОК У ПОЛЬЗОВАТЕЛЕЙ
+async function updateUserButtonsForRole(roleId, available_buttons) {
+    if (!roleId) {
+        console.error('❌ Role ID не определен для обновления кнопок');
+        return;
+    }
+    
+    try {
+        console.log(`🔄 Обновление кнопок для роли ${roleId}:`, available_buttons);
+        
+        const response = await fetch(`/api/admin/roles/${roleId}/update-users?userId=${currentUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ available_buttons })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`);
+            showMessage(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`, 'success');
+        } else {
+            console.error('❌ Ошибка обновления кнопок пользователей:', result.error);
+        }
+    } catch (error) {
+        console.error('❌ Ошибка обновления кнопок пользователей:', error);
+    }
+}
 
     // Редактирование роли
     async function editRole(roleId) {
