@@ -4352,41 +4352,80 @@ app.delete('/api/admin/roles/:roleId', requireAdmin, (req, res) => {
 
 // Управление персонажами
 app.get('/api/admin/characters', requireAdmin, (req, res) => {
-    const characters = db.characters.map(character => {
-        const role = db.roles.find(r => r.id === character.role_id);
-        return {
-            ...character,
-            role_name: role?.name
-        };
-    });
-    res.json(characters);
+    try {
+        const characters = db.characters.map(character => {
+            const role = db.roles.find(r => r.id === character.role_id);
+            return {
+                ...character,
+                role_name: role?.name || 'Неизвестная роль' // ✅ Добавляем имя роли
+            };
+        });
+        
+        res.json(characters);
+    } catch (error) {
+        console.error('❌ Ошибка получения персонажей:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
 });
 
+// Создание персонажа
 app.post('/api/admin/characters', requireAdmin, (req, res) => {
-    const { role_id, name, description, bonus_type, bonus_value } = req.body;
-    
-    if (!role_id || !name || !bonus_type || !bonus_value) {
-        return res.status(400).json({ error: 'Role ID, name, bonus type and value are required' });
+    try {
+        const { role_id, name, description, bonus_type, bonus_value, available_buttons } = req.body;
+        
+        console.log('👥 Создание персонажа:', {
+            role_id, name, bonus_type, bonus_value
+        });
+        
+        if (!role_id || !name || !bonus_type || !bonus_value) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Role ID, name, bonus type and value are required' 
+            });
+        }
+        
+        // Проверяем существование роли
+        const role = db.roles.find(r => r.id === parseInt(role_id));
+        if (!role) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'Роль не найдена' 
+            });
+        }
+        
+        const newCharacter = {
+            id: Date.now(),
+            role_id: parseInt(role_id),
+            name,
+            description: description || '',
+            bonus_type,
+            bonus_value,
+            available_buttons: available_buttons || [],
+            is_active: true,
+            created_at: new Date().toISOString()
+        };
+        
+        db.characters.push(newCharacter);
+        
+        console.log(`✅ Персонаж создан: ${name} для роли "${role.name}"`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Персонаж успешно создан', 
+            characterId: newCharacter.id,
+            character: {
+                ...newCharacter,
+                role_name: role.name // ✅ Возвращаем имя роли
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания персонажа:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Ошибка сервера' 
+        });
     }
-    
-    const newCharacter = {
-        id: Date.now(),
-        role_id: parseInt(role_id),
-        name,
-        description: description || '',
-        bonus_type,
-        bonus_value,
-        is_active: true,
-        created_at: new Date().toISOString()
-    };
-    
-    db.characters.push(newCharacter);
-    
-    res.json({ 
-        success: true, 
-        message: 'Персонаж успешно создан', 
-        character: newCharacter
-    });
 });
 
 app.put('/api/admin/characters/:characterId', requireAdmin, (req, res) => {
