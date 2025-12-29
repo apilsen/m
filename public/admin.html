@@ -2862,70 +2862,126 @@ async function updateUserButtonsForRole(roleId, available_buttons) {
         // ==================== ПЕРСОНАЖИ ====================
 
         // Загрузка персонажей
-        async function loadCharacters() {
-            try {
-                const response = await fetch(`/api/admin/characters?userId=${currentUserId}`);
-                const characters = await response.json();
-                
-                displayCharacters(characters);
-                populateCharacterRoles(characters);
-                
-            } catch (error) {
-                document.getElementById('charactersList').innerHTML = '<div class="message error">Ошибка загрузки персонажей</div>';
-            }
+async function loadCharacters() {
+    try {
+        const response = await fetch(`/api/admin/characters?userId=${currentUserId}`);
+        const characters = await response.json();
+        
+        displayCharacters(characters);
+        // ✅ ВАЖНО: Загружаем и заполняем список ролей для формы
+        await populateCharacterRoles();
+        
+    } catch (error) {
+        document.getElementById('charactersList').innerHTML = '<div class="message error">Ошибка загрузки персонажей</div>';
+    }
+}
+
+// ✅ ОТДЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ РОЛЕЙ ДЛЯ ФОРМЫ ПЕРСОНАЖА
+async function populateCharacterRoles() {
+    try {
+        const response = await fetch(`/api/webapp/roles`);
+        const roles = await response.json();
+        
+        const roleSelect = document.getElementById('characterRole');
+        
+        // Сохраняем текущее значение если есть
+        const currentValue = roleSelect.value;
+        
+        // Очищаем и заполняем заново
+        roleSelect.innerHTML = '<option value="">Выберите роль</option>';
+        
+        roles.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role.id;
+            option.textContent = `${role.icon} ${role.name}`;
+            roleSelect.appendChild(option);
+        });
+        
+        // Восстанавливаем выбранное значение
+        if (currentValue) {
+            roleSelect.value = currentValue;
         }
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки ролей для персонажа:', error);
+    }
+}
 
         // Отображение персонажей
-        function displayCharacters(characters) {
-            const charactersList = document.getElementById('charactersList');
-            
-            if (characters.length === 0) {
-                charactersList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><div>Персонажей не найдено</div></div>';
-                return;
+      // Отображение персонажей
+function displayCharacters(characters) {
+    const charactersList = document.getElementById('charactersList');
+    
+    if (characters.length === 0) {
+        charactersList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">👤</div>
+                <div>Персонажей не найдено</div>
+                <button class="btn btn-success" onclick="showCharacterForm()" style="margin-top: 20px;">
+                    ➕ Добавить первого персонажа
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    characters.forEach(character => {
+        const bonusDescriptions = {
+            'percent_bonus': `+${character.bonus_value}% к наградам`,
+            'forgiveness': `${character.bonus_value} право на ошибку`,
+            'random_gift': `Случайный подарок ${character.bonus_value} раз в день`,
+            'secret_advice': `Секретные советы на ${character.bonus_value}`,
+            'series_bonus': `+${character.bonus_value} к серийным наградам`
+        };
+        
+        // ✅ Получаем имя роли для отображения
+        const roleSelect = document.getElementById('characterRole');
+        let roleName = character.role_name || 'Неизвестная роль';
+        
+        // Если список ролей уже загружен, ищем имя там
+        if (roleSelect && roleSelect.options.length > 0) {
+            const roleOption = Array.from(roleSelect.options).find(opt => opt.value == character.role_id);
+            if (roleOption) {
+                roleName = roleOption.text;
             }
-            
-            let html = '';
-            
-            characters.forEach(character => {
-                const bonusDescriptions = {
-                    'percent_bonus': `+${character.bonus_value}% к наградам`,
-                    'forgiveness': `${character.bonus_value} право на ошибку`,
-                    'random_gift': `Случайный подарок ${character.bonus_value} раз в день`,
-                    'secret_advice': `Секретные советы на ${character.bonus_value}`,
-                    'series_bonus': `+${character.bonus_value} к серийным наградам`
-                };
-                
-                html += `
-                    <div class="character-card">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                            <div style="flex: 1;">
-                                <h3 style="margin: 0 0 8px 0;">${character.name}</h3>
-                                <p style="color: #718096; margin-bottom: 8px;">${character.description}</p>
-                                <div style="margin-bottom: 8px;">
-                                    <span class="badge badge-info">${character.role_name}</span>
-                                    <span class="badge badge-success">${bonusDescriptions[character.bonus_type]}</span>
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <span class="badge ${character.is_active ? 'badge-success' : 'badge-danger'}">
-                                    <span class="status-indicator ${character.is_active ? 'status-active' : 'status-inactive'}"></span>
-                                    ${character.is_active ? 'Активен' : 'Неактивен'}
-                                </span>
-                            </div>
+        }
+        
+        html += `
+            <div class="character-card">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 8px 0;">${character.name}</h3>
+                        <p style="color: #718096; margin-bottom: 8px;">${character.description}</p>
+                        <div style="margin-bottom: 8px;">
+                            <span class="badge badge-info">${roleName}</span>
+                            <span class="badge badge-success">${bonusDescriptions[character.bonus_type]}</span>
                         </div>
-                        <div style="color: #718096; font-size: 14px; margin-bottom: 16px;">
-                            Создан: ${new Date(character.created_at).toLocaleDateString('ru-RU')}
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn btn-warning" onclick="editCharacter(${character.id})">✏️ Редактировать</button>
-                            <button class="btn btn-danger" onclick="deleteCharacter(${character.id})">🗑️ Удалить</button>
+                        <div style="font-size: 12px; color: #718096;">
+                            ID: ${character.id} • Роль ID: ${character.role_id}
                         </div>
                     </div>
-                `;
-            });
-            
-            charactersList.innerHTML = html;
-        }
+                    <div style="text-align: right;">
+                        <span class="badge ${character.is_active ? 'badge-success' : 'badge-danger'}">
+                            <span class="status-indicator ${character.is_active ? 'status-active' : 'status-inactive'}"></span>
+                            ${character.is_active ? 'Активен' : 'Неактивен'}
+                        </span>
+                    </div>
+                </div>
+                <div style="color: #718096; font-size: 14px; margin-bottom: 16px;">
+                    Создан: ${new Date(character.created_at).toLocaleDateString('ru-RU')}
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-warning" onclick="editCharacter(${character.id})">✏️ Редактировать</button>
+                    <button class="btn btn-danger" onclick="deleteCharacter(${character.id})">🗑️ Удалить</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    charactersList.innerHTML = html;
+}
 
         // Заполнение ролей для формы персонажа
         function populateCharacterRoles(characters) {
@@ -2972,7 +3028,29 @@ async function saveCharacter() {
         alert('Заполните все обязательные поля');
         return;
     }
+     // ✅ УЛУЧШЕННАЯ ВАЛИДАЦИЯ
+    if (!role_id) {
+        showMessage('❌ Выберите роль для персонажа', 'error');
+        document.getElementById('characterRole').focus();
+        return;
+    }
     
+    if (!name) {
+        showMessage('❌ Введите имя персонажа', 'error');
+        document.getElementById('characterName').focus();
+        return;
+    }
+    
+    if (!bonus_value) {
+        showMessage('❌ Введите значение бонуса', 'error');
+        document.getElementById('characterBonusValue').focus();
+        return;
+    }
+    
+    // ✅ Получаем информацию о выбранной роли для отладки
+    const roleSelect = document.getElementById('characterRole');
+    const selectedRoleText = roleSelect.options[roleSelect.selectedIndex]?.text || 'Неизвестная роль';
+    console.log('💾 Сохраняем персонажа для роли:', selectedRoleText, 'ID:', role_id);
     // ✅ СОБИРАЕМ КНОПКИ ДЛЯ ПЕРСОНАЖА
     const available_buttons = [];
     
@@ -3060,33 +3138,52 @@ async function updateUserButtonsForCharacter(characterId, available_buttons) {
     }
 }
         // Редактирование персонажа
-        async function editCharacter(characterId) {
-            try {
-                const response = await fetch(`/api/admin/characters?userId=${currentUserId}`);
-                const characters = await response.json();
-                const character = characters.find(c => c.id === characterId);
-                
-                if (!character) {
-                    showMessage('❌ Персонаж не найден', 'error');
-                    return;
-                }
-                
-                document.getElementById('characterForm').style.display = 'block';
-                document.getElementById('characterFormTitle').textContent = 'Редактирование персонажа';
-                currentEditingId = characterId;
-                
-                // Заполнить форму
-                document.getElementById('characterRole').value = character.role_id;
-                document.getElementById('characterName').value = character.name;
-                document.getElementById('characterDescription').value = character.description;
-                document.getElementById('characterBonusType').value = character.bonus_type;
-                document.getElementById('characterBonusValue').value = character.bonus_value;
-                document.getElementById('characterActive').checked = character.is_active;
-                
-            } catch (error) {
-                showMessage('❌ Ошибка загрузки персонажа', 'error');
-            }
+// Редактирование персонажа
+async function editCharacter(characterId) {
+    try {
+        const response = await fetch(`/api/admin/characters?userId=${currentUserId}`);
+        const characters = await response.json();
+        const character = characters.find(c => c.id === characterId);
+        
+        if (!character) {
+            showMessage('❌ Персонаж не найден', 'error');
+            return;
         }
+        
+        // Сначала скрываем все формы
+        hideAllForms();
+        
+        // Показываем форму
+        const form = document.getElementById('characterForm');
+        if (!form) {
+            console.error('Форма персонажа не найдена');
+            return;
+        }
+        
+        form.style.display = 'block';
+        document.getElementById('characterFormTitle').textContent = 'Редактирование персонажа';
+        currentEditingId = characterId;
+        
+        // ✅ Сначала загружаем роли для выбора
+        await populateCharacterRoles();
+        
+        // Заполнить форму (делаем это после загрузки ролей)
+        setTimeout(() => {
+            document.getElementById('characterRole').value = character.role_id;
+            document.getElementById('characterName').value = character.name;
+            document.getElementById('characterDescription').value = character.description;
+            document.getElementById('characterBonusType').value = character.bonus_type;
+            document.getElementById('characterBonusValue').value = character.bonus_value;
+            document.getElementById('characterActive').checked = character.is_active;
+            
+            console.log('✅ Форма персонажа заполнена, роль установлена:', character.role_id);
+        }, 100);
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки персонажа:', error);
+        showMessage('❌ Ошибка загрузки персонажа: ' + error.message, 'error');
+    }
+}
 
         // Удаление персонажа
         async function deleteCharacter(characterId) {
@@ -3807,7 +3904,35 @@ async function updateUserButtonsForCharacter(characterId, available_buttons) {
             document.getElementById('marathonForm').style.display = 'none';
             currentEditingId = null;
         }
-
+// Показать форму персонажа
+async function showCharacterForm() {
+    // Сначала скрываем все формы
+    hideAllForms();
+    
+    // Показываем нужную форму
+    const form = document.getElementById('characterForm');
+    if (!form) {
+        console.error('Форма персонажа не найдена');
+        return;
+    }
+    
+    form.style.display = 'block';
+    document.getElementById('characterFormTitle').textContent = 'Добавление нового персонажа';
+    currentEditingId = null;
+    
+    // ✅ Сначала загружаем роли для выбора
+    await populateCharacterRoles();
+    
+    // Сбросить форму
+    document.getElementById('characterRole').value = '';
+    document.getElementById('characterName').value = '';
+    document.getElementById('characterDescription').value = '';
+    document.getElementById('characterBonusType').value = 'percent_bonus';
+    document.getElementById('characterBonusValue').value = '';
+    document.getElementById('characterActive').checked = true;
+    
+    console.log('✅ Форма персонажа открыта, роли загружены');
+}
         // ==================== ИНТЕРАКТИВЫ ====================
 
         // Загрузка интерактивов
@@ -5763,7 +5888,22 @@ async function deletePrivateVideo(videoId) {
         console.error('❌ Ошибка удаления материала:', error);
         showMessage('❌ Ошибка удаления материала', 'error');
     }
-}       
+}   
+        // ✅ ФУНКЦИЯ ДЛЯ ПРЕДЗАГРУЗКИ ДАННЫХ ПРИ ИНИЦИАЛИЗАЦИИ
+async function preloadDataForCharacterForm() {
+    try {
+        console.log('🔄 Предзагрузка данных для формы персонажа...');
+        
+        // Загружаем роли заранее
+        await populateCharacterRoles();
+        
+        console.log('✅ Роли загружены для формы персонажа');
+    } catch (error) {
+        console.error('❌ Ошибка предзагрузки данных:', error);
+    }
+}
+        // ✅ ВЫЗЫВАЕМ ПРЕДЗАГРУЗКУ ПРИ ИНИЦИАЛИЗАЦИИ
+document.addEventListener('DOMContentLoaded', function() {
 // ==================== УПРОЩЕННОЕ УПРАВЛЕНИЕ ПРИВАТНЫМИ МАТЕРИАЛАМИ ====================
 
 // Загрузка приватных материалов
