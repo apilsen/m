@@ -2517,28 +2517,19 @@ app.post('/api/users/register', (req, res) => {
         }
         
         const isNewUser = !user;
-        const availableButtons = role.available_buttons || [];
         
-        // ✅ ИСПРАВЛЕНИЕ: ПРОБЛЕМА ЗДЕСЬ
-        // ВМЕСТО ПРОСТОГО ДОБАВЛЕНИЯ private_videos, ИСПОЛЬЗУЕМ КНОПКИ ИЗ РОЛИ
-        // Убираем эту строку:
-        // if (!availableButtons.includes('private_videos')) {
-        //     availableButtons.push('private_videos');
-        // }
+        // ✅ ПРАВИЛЬНО СОБИРАЕМ КНОПКИ ИЗ РОЛИ И ПЕРСОНАЖА
+        const roleButtons = role.available_buttons || [];
+        const characterButtons = character?.available_buttons || [];
         
-        // ✅ ИСПРАВЛЕННЫЙ КОД: Используем кнопки из роли + проверяем персонажа
-        let finalAvailableButtons = [...availableButtons];
+        // Объединяем кнопки
+        const allButtons = [...new Set([...roleButtons, ...characterButtons])];
         
-        // Если есть персонаж, добавляем его кнопки
-        if (character && character.available_buttons) {
-            finalAvailableButtons = [...new Set([...finalAvailableButtons, ...character.available_buttons])];
-        }
-        
-        // ✅ ВСЕГДА добавляем базовые кнопки которые должны быть у всех
+        // ✅ ОБЯЗАТЕЛЬНЫЕ КНОПКИ ДЛЯ ВСЕХ
         const mandatoryButtons = ['profile', 'activities'];
         mandatoryButtons.forEach(btn => {
-            if (!finalAvailableButtons.includes(btn)) {
-                finalAvailableButtons.push(btn);
+            if (!allButtons.includes(btn)) {
+                allButtons.push(btn);
             }
         });
         
@@ -2555,7 +2546,7 @@ app.post('/api/users/register', (req, res) => {
                 class: role.name,
                 character_id: characterId || 1,
                 character_name: character ? character.name : 'Лука Цветной',
-                available_buttons: finalAvailableButtons, // ✅ Используем исправленный список
+                available_buttons: allButtons, // ✅ Устанавливаем правильные кнопки
                 registration_date: new Date().toISOString(),
                 last_active: new Date().toISOString()
             };
@@ -2565,6 +2556,7 @@ app.post('/api/users/register', (req, res) => {
             addSparks(userId, 10, 'registration_bonus', 'Стартовый бонус за регистрацию');
             
             console.log(`✅ Новый реальный пользователь создан: ${firstName} (ID: ${userId})`);
+            console.log(`   Кнопки пользователя:`, allButtons);
         } else {
             // ОБНОВЛЯЕМ СУЩЕСТВУЮЩЕГО ПОЛЬЗОВАТЕЛЯ
             user.tg_first_name = firstName;
@@ -2573,8 +2565,11 @@ app.post('/api/users/register', (req, res) => {
             user.character_id = characterId || user.character_id;
             user.character_name = character ? character.name : user.character_name;
             user.is_registered = true;
-            user.available_buttons = finalAvailableButtons; // ✅ Обновляем список кнопок
+            user.available_buttons = allButtons; // ✅ Обновляем список кнопок
             user.last_active = new Date().toISOString();
+            
+            console.log(`🔄 Пользователь обновлен: ${firstName}`);
+            console.log(`   Новые кнопки:`, allButtons);
         }
         
         // АВТОМАТИЧЕСКИ ДОБАВЛЯЕМ АДМИНА ЕСЛИ ЭТО АДМИН
@@ -4668,7 +4663,211 @@ app.post('/api/admin/marathons', requireAdmin, (req, res) => {
         marathon: newMarathon
     });
 });
+// ✅ API ДЛЯ ОБНОВЛЕНИЯ КНОПОК У ПОЛЬЗОВАТЕЛЕЙ ПРИ ИЗМЕНЕНИИ РОЛИ
+app.post('/api/admin/roles/:roleId/update-users', requireAdmin, (req, res) => {
+    try {
+        const roleId = parseInt(req.params.roleId);
+        const { available_buttons } = req.body;
+        
+        const role = db.roles.find(r => r.id === roleId);
+        if (!role) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Роль не найдена' 
+            });
+        }
+        
+        let updatedCount = 0;
+        
+        // Находим всех пользователей с этой ролью
+        const usersWithRole = db.users.filter(u => u.class === role.name);
+        
+        usersWithRole.forEach(user => {
+            // Получаем персонажа пользователя
+            const character = db.characters.find(c => c.id === user.character_id);
+            const characterButtons = character?.available_buttons || [];
+            
+            // Объединяем кнопки роли и персонажа
+            const allButtons = [...new Set([...available_buttons, ...characterButtons])];
+            
+            // Обязательные кнопки
+            const mandatoryButtons = ['profile', 'activities'];
+            mandatoryButtons.forEach(btn => {
+                if (!allButtons.includes(btn)) {
+                    allButtons.push(btn);
+                }
+            });
+            
+            // Обновляем пользователя
+            user.available_buttons = allButtons;
+            updatedCount++;
+            
+            console.log(`🔄 Обновлены кнопки для пользователя ${user.tg_first_name}:`, allButtons);
+        });
+        
+        res.json({
+            success: true,
+            updated_users_count: updatedCount,
+            message: `Кнопки обновлены у ${updatedCount} пользователей с ролью "${role.name}"`
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления кнопок пользователей:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Ошибка обновления кнопок' 
+        });
+    }
+});
 
+// ✅ API ДЛЯ ОБНОВЛЕНИЯ КНОПОК У ПОЛЬЗОВАТЕЛЕЙ ПРИ ИЗМЕНЕНИИ ПЕРСОНАЖА
+app.post('/api/admin/characters/:characterId/update-users', requireAdmin, (req, res) => {
+    try {
+        const characterId = parseInt(req.params.characterId);
+        const { available_buttons } = req.body;
+        
+        const character = db.characters.find(c => c.id === characterId);
+        if (!character) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Персонаж не найден' 
+            });
+        }
+        
+        let updatedCount = 0;
+        
+        // Находим всех пользователей с этим персонажем
+        const usersWithCharacter = db.users.filter(u => u.character_id === characterId);
+        
+        usersWithCharacter.forEach(user => {
+            // Получаем роль пользователя
+            const role = db.roles.find(r => r.name === user.class);
+            const roleButtons = role?.available_buttons || [];
+            
+            // Объединяем кнопки роли и персонажа
+            const allButtons = [...new Set([...roleButtons, ...available_buttons])];
+            
+            // Обязательные кнопки
+            const mandatoryButtons = ['profile', 'activities'];
+            mandatoryButtons.forEach(btn => {
+                if (!allButtons.includes(btn)) {
+                    allButtons.push(btn);
+                }
+            });
+            
+            // Обновляем пользователя
+            user.available_buttons = allButtons;
+            updatedCount++;
+            
+            console.log(`🔄 Обновлены кнопки для пользователя ${user.tg_first_name} (персонаж):`, allButtons);
+        });
+        
+        res.json({
+            success: true,
+            updated_users_count: updatedCount,
+            message: `Кнопки обновлены у ${updatedCount} пользователей с персонажем "${character.name}"`
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления кнопок пользователей для персонажа:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Ошибка обновления кнопок' 
+        });
+    }
+});
+
+// ✅ API ДЛЯ ПРОВЕРКИ КНОПОК ПОЛЬЗОВАТЕЛЯ
+app.get('/api/debug/user/:userId/buttons', (req, res) => {
+    try {
+        const userId = parseInt(req.params.userId);
+        const user = db.users.find(u => u.user_id === userId);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const role = db.roles.find(r => r.name === user.class);
+        const character = db.characters.find(c => c.id === user.character_id);
+        
+        res.json({
+            user: {
+                id: user.user_id,
+                name: user.tg_first_name,
+                role: user.class,
+                character: user.character_name,
+                available_buttons: user.available_buttons || []
+            },
+            role: {
+                name: role?.name,
+                available_buttons: role?.available_buttons || []
+            },
+            character: {
+                name: character?.name,
+                available_buttons: character?.available_buttons || []
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки кнопок:', error);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// ✅ API ДЛЯ РУЧНОГО ОБНОВЛЕНИЯ КНОПОК ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
+app.post('/api/admin/fix-user-buttons', requireAdmin, (req, res) => {
+    try {
+        console.log('🔧 Ручное исправление кнопок всех пользователей');
+        
+        let fixedCount = 0;
+        
+        db.users.forEach(user => {
+            if (user.is_registered) {
+                const role = db.roles.find(r => r.name === user.class);
+                const character = db.characters.find(c => c.id === user.character_id);
+                
+                const roleButtons = role?.available_buttons || [];
+                const characterButtons = character?.available_buttons || [];
+                
+                // Объединяем кнопки
+                const allButtons = [...new Set([...roleButtons, ...characterButtons])];
+                
+                // Обязательные кнопки
+                const mandatoryButtons = ['profile', 'activities'];
+                mandatoryButtons.forEach(btn => {
+                    if (!allButtons.includes(btn)) {
+                        allButtons.push(btn);
+                    }
+                });
+                
+                // Проверяем изменились ли кнопки
+                const currentButtons = user.available_buttons || [];
+                const currentButtonsStr = JSON.stringify([...currentButtons].sort());
+                const newButtonsStr = JSON.stringify([...allButtons].sort());
+                
+                if (currentButtonsStr !== newButtonsStr) {
+                    user.available_buttons = allButtons;
+                    fixedCount++;
+                    console.log(`🔄 Исправлены кнопки для ${user.tg_first_name}:`, allButtons);
+                }
+            }
+        });
+        
+        res.json({
+            success: true,
+            fixed_count: fixedCount,
+            message: `Исправлены кнопки у ${fixedCount} пользователей`
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка исправления кнопок:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Ошибка исправления кнопок' 
+        });
+    }
+});
 app.put('/api/admin/marathons/:marathonId', requireAdmin, (req, res) => {
     const marathonId = parseInt(req.params.marathonId);
     const { title, description, duration_days, tasks, sparks_per_day, is_active } = req.body;
