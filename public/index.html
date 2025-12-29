@@ -5299,10 +5299,33 @@ async function loadShopItems() {
             const canAfford = currentUser && currentUser.sparks >= item.price;
             const hasPurchased = false;
 
+            // Специальный рендеринг для embed-видео
+            let previewContent = '';
+            
+            if (item.type === 'embed' && item.embed_html) {
+                previewContent = `
+                    <div style="margin: 12px 0;">
+                        <h4 style="margin-bottom: 8px; color: #4a5568;">🎬 Предпросмотр:</h4>
+                        <div style="background: #f7fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                            ${item.embed_html}
+                        </div>
+                        <div style="color: #718096; font-size: 12px; margin-top: 8px; text-align: center;">
+                            🔒 После покупки вы получите доступ к полной версии
+                        </div>
+                    </div>
+                `;
+            } else if (item.preview_url) {
+                previewContent = `
+                    <img src="${item.preview_url}" class="media-preview" 
+                         style="max-height: 150px; object-fit: cover; cursor: pointer;"
+                         onclick="openMediaModal('${item.preview_url}', 'image')">
+                `;
+            }
+            
             itemCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                     <div style="flex: 1;">
-                        <h3 style="margin: 0;">${item.title}</h3>
+                        <h3 style="margin: 0 0 8px 0;">${item.title}</h3>
                         <p style="color: #718096; margin-bottom: 8px;">${item.description}</p>
                         <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
                             <span class="badge badge-info">${getPurchaseTypeIcon(item.type)} ${getPurchaseTypeName(item.type)}</span>
@@ -5315,14 +5338,11 @@ async function loadShopItems() {
                     </div>
                 </div>
                 
-                ${item.preview_url ? `
-                    <img src="${item.preview_url}" class="media-preview" 
-                         style="max-height: 150px; object-fit: cover;">
-                ` : ''}
+                ${previewContent}
                 
-                ${item.content_text ? `
-                    <div class="content-preview">
-                        ${item.content_text}
+                ${item.content_text && item.type !== 'embed' ? `
+                    <div class="content-preview" style="max-height: 100px;">
+                        ${item.content_text.substring(0, 150)}${item.content_text.length > 150 ? '...' : ''}
                     </div>
                 ` : ''}
                 
@@ -5351,6 +5371,69 @@ async function loadShopItems() {
     }
 }
 
+    // Функция для загрузки embed-превью
+async function loadEmbedPreview(itemId) {
+    try {
+        const response = await fetch(`/api/webapp/shop/items/${itemId}/embed`);
+        const result = await response.json();
+        
+        if (result.success && result.embed_html) {
+            return result.embed_html;
+        }
+        return null;
+    } catch (error) {
+        console.error('Ошибка загрузки embed:', error);
+        return null;
+    }
+}
+
+// Функция для предпросмотра embed-видео
+function previewEmbedContent(embedHtml) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        padding: 20px;
+    `;
+    
+    modal.innerHTML = `
+        <div style="position: relative; width: 100%; max-width: 800px;">
+            <div style="position: absolute; top: -40px; right: 0;">
+                <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" 
+                        style="background: #f56565; color: white; border: none; border-radius: 50%; 
+                               width: 35px; height: 35px; font-size: 18px; cursor: pointer;">
+                    ✕
+                </button>
+            </div>
+            <div style="background: white; border-radius: 12px; padding: 20px; max-height: 90vh; overflow-y: auto;">
+                <h3 style="margin-bottom: 16px; text-align: center; color: #2d3748;">🎬 Предпросмотр контента</h3>
+                <div style="margin: 20px 0;">
+                    ${embedHtml}
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <div style="color: #718096; font-size: 14px; margin-bottom: 12px;">
+                        ⚡ Это предпросмотр. После покупки вы получите доступ к полному контенту
+                    </div>
+                    <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" 
+                            class="btn" style="padding: 12px 24px;">
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+    
 async function purchaseItem(itemId) {
     if (!confirm('Вы уверены, что хотите купить этот товар?')) return;
     
@@ -5562,7 +5645,8 @@ function generatePurchasePreview(purchase) {
                     <div style="font-size: 32px; margin-bottom: 8px;">🎥</div>
                     <div style="color: #718096; font-size: 12px;">Видео контент</div>
                     ${previewUrl ? `
-                        <img src="${previewUrl}" style="max-width: 100px; border-radius: 8px; margin-top: 8px;">
+                        <img src="${previewUrl}" style="max-width: 100px; border-radius: 8px; margin-top: 8px;"
+                             onclick="openMediaModal('${previewUrl}', 'image')">
                     ` : ''}
                 </div>
             `;
@@ -5573,7 +5657,21 @@ function generatePurchasePreview(purchase) {
                     <div style="font-size: 32px; margin-bottom: 8px;">🖼️</div>
                     <div style="color: #718096; font-size: 12px;">${images.length} изображение${images.length > 1 ? 'я' : ''}</div>
                     ${previewUrl ? `
-                        <img src="${previewUrl}" style="max-width: 100px; border-radius: 8px; margin-top: 8px;">
+                        <img src="${previewUrl}" style="max-width: 100px; border-radius: 8px; margin-top: 8px;"
+                             onclick="openMediaModal('${previewUrl}', 'image')">
+                    ` : ''}
+                </div>
+            `;
+        case 'embed':
+            return `
+                <div style="background: #f7fafc; padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🎬</div>
+                    <div style="color: #718096; font-size: 12px;">Встроенное видео</div>
+                    ${purchase.embed_html ? `
+                        <button class="btn" onclick="previewEmbedContent(\`${purchase.embed_html.replace(/`/g, '\\`')}\`)" 
+                                style="margin-top: 8px; padding: 8px 16px; font-size: 12px;">
+                            👁️ Предпросмотр
+                        </button>
                     ` : ''}
                 </div>
             `;
