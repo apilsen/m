@@ -2689,7 +2689,6 @@ async function exportUsers() {
             });
         }
 
-        // Сохранение роли
 async function saveRole() {
     const name = document.getElementById('roleName').value.trim();
     const description = document.getElementById('roleDescription').value.trim();
@@ -2707,7 +2706,7 @@ async function saveRole() {
         available_buttons.push(checkbox.id.replace('btn_', ''));
     });
     
-    // ✅ ИСПРАВЛЕНИЕ: Обязательные кнопки
+    // ✅ ОБЯЗАТЕЛЬНЫЕ КНОПКИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
     const mandatoryButtons = ['profile', 'activities'];
     mandatoryButtons.forEach(btn => {
         if (!available_buttons.includes(btn)) {
@@ -2727,7 +2726,10 @@ async function saveRole() {
         console.log('💾 Сохраняем роль с кнопками:', available_buttons);
         
         let response;
+        let roleId;
+        
         if (currentEditingId) {
+            roleId = currentEditingId;
             response = await fetch(`/api/admin/roles/${currentEditingId}?userId=${currentUserId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2739,6 +2741,9 @@ async function saveRole() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(roleData)
             });
+            
+            const result = await response.json();
+            roleId = result.role?.id || result.roleId;
         }
         
         const result = await response.json();
@@ -2748,11 +2753,9 @@ async function saveRole() {
             hideRoleForm();
             loadRoles();
             
-            // ✅ Обновляем кнопки у всех пользователей с этой ролью
-            if (available_buttons.length > 0) {
-                setTimeout(() => {
-                    updateUserButtonsForRole(currentEditingId || result.roleId, available_buttons);
-                }, 500);
+            // ✅ ОБНОВЛЯЕМ КНОПКИ У ВСЕХ ПОЛЬЗОВАТЕЛЕЙ С ЭТОЙ РОЛЬЮ
+            if (roleId) {
+                await updateUserButtonsForRole(roleId, available_buttons);
             }
         } else {
             showMessage(`❌ ${result.error}`, 'error');
@@ -2764,11 +2767,13 @@ async function saveRole() {
     }
 }
 
-// ✅ НОВАЯ ФУНКЦИЯ: Обновление кнопок у пользователей при изменении роли
+// ✅ ФУНКЦИЯ ОБНОВЛЕНИЯ КНОПОК У ПОЛЬЗОВАТЕЛЕЙ
 async function updateUserButtonsForRole(roleId, available_buttons) {
     try {
-        const response = await fetch(`/api/admin/roles/${roleId}/buttons?userId=${currentUserId}`, {
-            method: 'PUT',
+        console.log(`🔄 Обновление кнопок для роли ${roleId}:`, available_buttons);
+        
+        const response = await fetch(`/api/admin/roles/${roleId}/update-users?userId=${currentUserId}`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ available_buttons })
         });
@@ -2777,6 +2782,9 @@ async function updateUserButtonsForRole(roleId, available_buttons) {
         
         if (result.success) {
             console.log(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`);
+            showMessage(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей`, 'success');
+        } else {
+            console.error('❌ Ошибка обновления кнопок пользователей:', result.error);
         }
     } catch (error) {
         console.error('❌ Ошибка обновления кнопок пользователей:', error);
@@ -2952,7 +2960,6 @@ async function updateUserButtonsForRole(roleId, available_buttons) {
             document.getElementById('characterActive').checked = true;
         }
 
-        // Сохранение персонажа
 async function saveCharacter() {
     const role_id = document.getElementById('characterRole').value;
     const name = document.getElementById('characterName').value.trim();
@@ -2966,16 +2973,17 @@ async function saveCharacter() {
         return;
     }
     
-    // ✅ ИСПРАВЛЕНИЕ: Добавляем available_buttons для персонажа
-    // По умолчанию персонаж наследует кнопки от роли + может иметь свои
-    const role = db.roles.find(r => r.id == role_id);
-    const roleButtons = role?.available_buttons || [];
+    // ✅ СОБИРАЕМ КНОПКИ ДЛЯ ПЕРСОНАЖА
+    const available_buttons = [];
     
-    // Можно добавить специальные кнопки для персонажа
-    const characterSpecialButtons = [];
-    
-    // Объединяем кнопки
-    const available_buttons = [...new Set([...roleButtons, ...characterSpecialButtons])];
+    // Персонаж может иметь специальные кнопки
+    // Например, разные персонажи могут открывать разные возможности
+    if (bonus_type === 'secret_advice') {
+        available_buttons.push('secret_tips');
+    }
+    if (bonus_type === 'random_gift') {
+        available_buttons.push('daily_gift');
+    }
     
     try {
         const characterData = {
@@ -2984,14 +2992,17 @@ async function saveCharacter() {
             description,
             bonus_type,
             bonus_value,
-            available_buttons, // ✅ Добавляем кнопки
+            available_buttons, // ✅ Добавляем кнопки персонажа
             is_active
         };
         
         console.log('💾 Сохраняем персонажа с кнопками:', available_buttons);
         
         let response;
+        let characterId;
+        
         if (currentEditingId) {
+            characterId = currentEditingId;
             response = await fetch(`/api/admin/characters/${currentEditingId}?userId=${currentUserId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -3003,6 +3014,9 @@ async function saveCharacter() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(characterData)
             });
+            
+            const result = await response.json();
+            characterId = result.character?.id || result.characterId;
         }
         
         const result = await response.json();
@@ -3011,12 +3025,38 @@ async function saveCharacter() {
             showMessage('✅ Персонаж успешно сохранен', 'success');
             hideCharacterForm();
             loadCharacters();
+            
+            // ✅ ОБНОВЛЯЕМ КНОПКИ У ПОЛЬЗОВАТЕЛЕЙ С ЭТИМ ПЕРСОНАЖЕМ
+            if (characterId) {
+                await updateUserButtonsForCharacter(characterId, available_buttons);
+            }
         } else {
             showMessage(`❌ ${result.error}`, 'error');
         }
         
     } catch (error) {
-        showMessage('❌ Ошибка сохранения персонажа', 'error');
+        showMessage('❌ Ошибка сохранения персонажа: ' + error.message, 'error');
+    }
+}
+
+// ✅ ФУНКЦИЯ ОБНОВЛЕНИЯ КНОПОК ДЛЯ ПЕРСОНАЖА
+async function updateUserButtonsForCharacter(characterId, available_buttons) {
+    try {
+        console.log(`🔄 Обновление кнопок для персонажа ${characterId}:`, available_buttons);
+        
+        const response = await fetch(`/api/admin/characters/${characterId}/update-users?userId=${currentUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ available_buttons })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`✅ Кнопки обновлены у ${result.updated_users_count} пользователей с персонажем`);
+        }
+    } catch (error) {
+        console.error('❌ Ошибка обновления кнопок пользователей для персонажа:', error);
     }
 }
         // Редактирование персонажа
