@@ -4091,47 +4091,430 @@ function optimizeMobileInterface() {
 }
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ====================
-// ==================== ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ====================
 async function initApp() {
     try {
         console.log('🚀 Инициализация приложения...');
+        console.log('📱 User Agent:', navigator.userAgent);
+        
+        // Определяем, мобильное ли устройство
+        window.isMobileDevice = /Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (window.isMobileDevice) {
+            console.log('📱 Мобильное устройство обнаружено, применяем оптимизации');
+            applyMobileOptimizations();
+        }
         
         // Инициализация Telegram WebApp
         if (typeof Telegram !== 'undefined') {
             tg = window.Telegram.WebApp;
+            console.log('🤖 Telegram WebApp доступен');
+            
+            // Раскрываем на весь экран
             tg.expand();
+            
+            // Включаем подтверждение закрытия
             tg.enableClosingConfirmation();
-            currentUserId = tg.initDataUnsafe.user?.id || 898508164;
+            
+            // Получаем ID пользователя
+            currentUserId = tg.initDataUnsafe.user?.id;
+            
+            console.log('👤 Telegram User ID:', currentUserId);
+            
+            // Настраиваем тему
+            if (tg.colorScheme) {
+                document.documentElement.setAttribute('data-theme', tg.colorScheme);
+            }
+            
+            // Настраиваем основные кнопки
+            tg.MainButton.setText('Готово');
+            tg.MainButton.hide();
+            
         } else {
             console.log('⚠️ Telegram WebApp не обнаружен, используем тестовый режим');
-            currentUserId = 898508164;
+            currentUserId = 898508164; // Тестовый ID
+            
+            // Для разработки - добавляем тестовые данные
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.log('🔧 Режим разработки активирован');
+            }
         }
         
-        console.log('👤 User ID:', currentUserId);
+        console.log('👤 Текущий User ID:', currentUserId);
         
-        // Оптимизируем интерфейс для мобильных
-        optimizeMobileInterface();
-        
-        // Показываем загрузку
+        // Показываем состояние загрузки
         showLoadingState();
+        
+        // Настраиваем обработчики событий
+        setupEventListeners();
         
         // Загружаем данные пользователя с таймаутом
         await Promise.race([
             loadUserData(),
             new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 10000)
+                setTimeout(() => reject(new Error('Timeout loading user data')), 15000)
             )
         ]);
         
-        console.log('✅ Приложение инициализировано');
+        console.log('✅ Приложение успешно инициализировано');
+        
+        // Инициализируем системы после загрузки пользователя
+        if (currentUser) {
+            initializeUserSystems();
+        }
+        
+        // Применяем мобильные исправления для магазина
+        if (window.isMobileDevice) {
+            setupMobileShopFix();
+        }
         
     } catch (error) {
-        console.error('💥 Ошибка инициализации:', error);
+        console.error('💥 Критическая ошибка инициализации:', error);
+        
+        // Показываем дружественное сообщение об ошибке
+        showAppError(error);
+        
         // Всегда показываем экран приветствия при ошибке
         showWelcomeScreen();
     }
 }
 
+// ==================== МОБИЛЬНЫЕ ОПТИМИЗАЦИИ ====================
+function applyMobileOptimizations() {
+    console.log('⚙️ Применяем мобильные оптимизации');
+    
+    // 1. Предотвращаем стандартные жесты браузера
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches.length > 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    // 2. Предотвращаем зум при двойном тапе
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+            event.preventDefault();
+        }
+        lastTouchEnd = now;
+    }, false);
+    
+    // 3. Настраиваем viewport
+    const metaViewport = document.querySelector('meta[name="viewport"]');
+    if (metaViewport) {
+        metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+    } else {
+        const meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+        document.head.appendChild(meta);
+    }
+    
+    // 4. Добавляем CSS для мобильных
+    const mobileStyles = document.createElement('style');
+    mobileStyles.textContent = `
+        /* Предотвращаем выделение текста при тапе */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+        
+        /* Улучшаем скролл на iOS */
+        .screen {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Увеличиваем зону клика для мобильных */
+        .btn, .shop-item, .interactive-card, .quiz-card {
+            min-height: 44px;
+        }
+        
+        /* Улучшаем отображение на очень маленьких экранах */
+        @media (max-width: 320px) {
+            .container {
+                padding: 0 4px !important;
+            }
+            
+            .card {
+                padding: 12px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .btn {
+                padding: 14px !important;
+                font-size: 14px !important;
+            }
+        }
+        
+        /* Исправление для iOS input zoom */
+        @media screen and (-webkit-min-device-pixel-ratio:0) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+        
+        /* Предотвращаем переполнение текста */
+        .shop-item h3, .shop-item p {
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            hyphens: auto !important;
+        }
+    `;
+    document.head.appendChild(mobileStyles);
+    
+    // 5. Обработка изменения ориентации
+    window.addEventListener('orientationchange', function() {
+        setTimeout(() => {
+            window.scrollTo(0, 0);
+        }, 100);
+    });
+}
+
+// ==================== ИСПРАВЛЕНИЯ ДЛЯ МАГАЗИНА НА МОБИЛЬНЫХ ====================
+function setupMobileShopFix() {
+    console.log('🛒 Настраиваем исправления для мобильного магазина');
+    
+    const style = document.createElement('style');
+    style.textContent = `
+        /* Специальные стили для магазина на мобильных */
+        .shop-screen .shop-item {
+            transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+        
+        /* Улучшаем производительность скролла */
+        #shopItemsList, #purchasedItemsList {
+            transform: translateZ(0);
+        }
+        
+        /* Фикс для прокрутки внутри модальных окон */
+        .media-modal * {
+            -webkit-overflow-scrolling: touch !important;
+        }
+        
+        /* Предотвращаем скролл body при открытом модальном окне */
+        body.modal-open {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Улучшаем отзывчивость кнопок */
+        .shop-item .btn {
+            transition: all 0.2s ease;
+        }
+        
+        .shop-item .btn:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Обработка проблем с памятью на мобильных
+    let lastScrollTime = 0;
+    window.addEventListener('scroll', function() {
+        const now = Date.now();
+        if (now - lastScrollTime > 1000) {
+            // Освобождаем ресурсы при редком скролле
+            if (typeof gc !== 'undefined') gc();
+        }
+        lastScrollTime = now;
+    });
+}
+
+// ==================== НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ ====================
+function setupEventListeners() {
+    console.log('🔧 Настраиваем обработчики событий');
+    
+    // Обработка изменения видимости страницы
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            console.log('🔄 Страница снова видима');
+            // Можно обновить данные при возвращении
+            if (currentUser && Date.now() - (window.lastUpdate || 0) > 60000) {
+                loadUserData().catch(console.error);
+            }
+        }
+    });
+    
+    // Глобальный обработчик ошибок
+    window.addEventListener('error', function(event) {
+        console.error('🚨 Глобальная ошибка:', event.error);
+        console.error('Файл:', event.filename);
+        console.error('Строка:', event.lineno);
+        
+        // Отправляем отчет об ошибке (можно отправить на сервер)
+        if (window.errorReports === undefined) {
+            window.errorReports = [];
+        }
+        window.errorReports.push({
+            error: event.error?.message,
+            file: event.filename,
+            line: event.lineno,
+            timestamp: new Date().toISOString(),
+            screen: appState?.currentScreen,
+            userId: currentUserId
+        });
+        
+        // Сохраняем в localStorage для отладки
+        try {
+            localStorage.setItem('last_app_error', JSON.stringify({
+                message: event.error?.message,
+                stack: event.error?.stack,
+                time: new Date().toISOString()
+            }));
+        } catch (e) {
+            // Игнорируем ошибки localStorage
+        }
+    }, true);
+    
+    // Обработка обещаний без catch
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('🚨 Необработанное обещание:', event.reason);
+        
+        // Показываем сообщение пользователю только если это критическая ошибка
+        if (event.reason?.message?.includes('network') || 
+            event.reason?.message?.includes('fetch') ||
+            event.reason?.message?.includes('timeout')) {
+            
+            showMessage('⚠️ Проблема с подключением', 'warning');
+        }
+    });
+    
+    // Обработка offline/online
+    window.addEventListener('offline', function() {
+        console.log('📴 Устройство offline');
+        showMessage('📶 Отсутствует подключение к интернету', 'warning');
+        document.body.classList.add('offline');
+    });
+    
+    window.addEventListener('online', function() {
+        console.log('📶 Устройство online');
+        showMessage('✅ Подключение восстановлено', 'success');
+        document.body.classList.remove('offline');
+        
+        // Пытаемся обновить данные
+        setTimeout(() => {
+            loadUserData().catch(() => {
+                console.log('Не удалось обновить данные после восстановления связи');
+            });
+        }, 1000);
+    });
+}
+
+// ==================== ИНИЦИАЛИЗАЦИЯ СИСТЕМ ПОЛЬЗОВАТЕЛЯ ====================
+function initializeUserSystems() {
+    console.log('⚙️ Инициализируем системы пользователя');
+    
+    // Инициализируем систему анимаций
+    if (window.animationManager) {
+        // Анимация появления основного контента
+        const mainContent = document.getElementById('userContent');
+        if (mainContent) {
+            animationManager.fadeIn(mainContent);
+        }
+    }
+    
+    // Проверяем достижения
+    if (window.achievementSystem && currentUser) {
+        setTimeout(() => {
+            achievementSystem.checkAchievements(currentUser);
+        }, 2000);
+    }
+    
+    // Запускаем периодические обновления
+    startPeriodicUpdates();
+}
+
+// ==================== ПЕРИОДИЧЕСКИЕ ОБНОВЛЕНИЯ ====================
+function startPeriodicUpdates() {
+    // Обновляем данные каждые 5 минут
+    setInterval(() => {
+        if (document.visibilityState === 'visible' && currentUser) {
+            console.log('🔄 Фоновое обновление данных');
+            loadUserData().catch(err => {
+                console.log('Фоновое обновление не удалось:', err.message);
+            });
+        }
+    }, 5 * 60 * 1000); // 5 минут
+    
+    // Обновляем время сессии каждую минуту
+    setInterval(() => {
+        if (window.analyticsManager) {
+            analyticsManager.track('session_ping', {
+                screen: appState?.currentScreen
+            });
+        }
+    }, 60 * 1000);
+}
+
+// ==================== ОБРАБОТКА КРИТИЧЕСКИХ ОШИБОК ====================
+function showAppError(error) {
+    const errorContainer = document.getElementById('userData');
+    if (!errorContainer) return;
+    
+    const isNetworkError = error.message.includes('network') || 
+                          error.message.includes('fetch') || 
+                          error.message.includes('NetworkError');
+    
+    errorContainer.innerHTML = `
+        <div class="error" style="text-align: center; padding: 40px;">
+            <div style="font-size: 64px; margin-bottom: 16px;">${isNetworkError ? '📶' : '😔'}</div>
+            <h3 style="margin-bottom: 12px;">
+                ${isNetworkError ? 'Проблема с подключением' : 'Что-то пошло не так'}
+            </h3>
+            <p style="color: #718096; margin-bottom: 20px; line-height: 1.5;">
+                ${isNetworkError ? 
+                    'Проверьте подключение к интернету и попробуйте снова' : 
+                    'Попробуйте обновить страницу или повторить попытку позже'
+                }
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                <button class="btn" onclick="location.reload()" style="padding: 12px 24px;">
+                    🔄 Обновить страницу
+                </button>
+                ${isNetworkError ? `
+                    <button class="btn btn-secondary" onclick="tryOfflineMode()" style="padding: 12px 24px;">
+                        📴 Попробовать оффлайн-режим
+                    </button>
+                ` : ''}
+            </div>
+            ${!isNetworkError ? `
+                <div style="margin-top: 24px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                    <div style="font-size: 12px; color: #718096; text-align: left;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">Детали ошибки:</div>
+                        <div style="font-family: monospace; font-size: 11px; word-break: break-all;">
+                            ${error.message.substring(0, 100)}
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// ==================== ОФФЛАЙН РЕЖИМ ====================
+function tryOfflineMode() {
+    // Проверяем, есть ли сохраненные данные
+    const savedUserData = localStorage.getItem('last_user_data');
+    
+    if (savedUserData) {
+        try {
+            const userData = JSON.parse(savedUserData);
+            currentUser = userData;
+            showUserData();
+            showMessage('📴 Используем сохраненные данные', 'info');
+        } catch (e) {
+            showMessage('❌ Не удалось загрузить сохраненные данные', 'error');
+        }
+    } else {
+        showMessage('⚠️ Нет сохраненных данных для оффлайн-режима', 'warning');
+    }
+}
+    
 async function loadUserData() {
     try {
         console.log('🔄 Загрузка данных пользователя:', currentUserId);
@@ -5300,135 +5683,366 @@ async function uploadWork() {
 
 // ==================== МАГАЗИН ====================
 function showShopTab(tab) {
-    currentShopTab = tab;
-    
-    document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.shop-tab').forEach(t => {
-        if (t.textContent.includes(tab === 'items' ? 'Товары' : 'Мои покупки')) {
-            t.classList.add('active');
+    try {
+        console.log('🔄 Переключение вкладки магазина:', tab);
+        
+        currentShopTab = tab;
+        
+        // Обновляем активные вкладки
+        document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.shop-tab').forEach(t => {
+            if (t.textContent.includes(tab === 'items' ? 'Товары' : 'Мои покупки')) {
+                t.classList.add('active');
+            }
+        });
+        
+        // Показываем соответствующую вкладку
+        document.getElementById('shopItemsTab').style.display = tab === 'items' ? 'block' : 'none';
+        document.getElementById('shopPurchasedTab').style.display = tab === 'purchased' ? 'block' : 'none';
+        
+        // Обновляем содержимое
+        if (tab === 'items') {
+            loadShopItems();
+        } else {
+            loadPurchasedItems();
         }
-    });
-    
-    document.getElementById('shopItemsTab').style.display = tab === 'items' ? 'block' : 'none';
-    document.getElementById('shopPurchasedTab').style.display = tab === 'purchased' ? 'block' : 'none';
-    
-    if (tab === 'items') {
-        loadShopItems();
-    } else {
-        loadPurchasedItems();
+        
+        // Анимация переключения
+        const activeTab = document.getElementById(tab === 'items' ? 'shopItemsTab' : 'shopPurchasedTab');
+        if (activeTab) {
+            activeTab.classList.add('slide-in');
+            setTimeout(() => activeTab.classList.remove('slide-in'), 500);
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка переключения вкладок:', error);
+        showMessage('❌ Ошибка переключения вкладок', 'error');
     }
 }
 
+    function handleMobileShopIssues() {
+    if (isMobileDevice) {
+        console.log('📱 Применяем исправления для мобильного магазина');
+        
+        // 1. Увеличиваем размеры кнопок для мобильных
+        const style = document.createElement('style');
+        style.textContent = `
+            @media (max-width: 768px) {
+                .shop-item .btn {
+                    min-height: 44px !important;
+                    font-size: 15px !important;
+                }
+                
+                .shop-item {
+                    padding: 16px !important;
+                    margin-bottom: 12px !important;
+                }
+                
+                .shop-item h3 {
+                    font-size: 17px !important;
+                    line-height: 1.3 !important;
+                }
+                
+                .shop-item p {
+                    font-size: 14px !important;
+                    line-height: 1.4 !important;
+                }
+                
+                .badge {
+                    padding: 6px 10px !important;
+                    font-size: 11px !important;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .shop-item {
+                    padding: 12px !important;
+                }
+                
+                .shop-item .btn {
+                    font-size: 14px !important;
+                    padding: 12px !important;
+                }
+                
+                .shop-tabs {
+                    flex-wrap: nowrap !important;
+                    overflow-x: auto !important;
+                }
+                
+                .shop-tab {
+                    min-width: 100px !important;
+                    white-space: nowrap !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 2. Обработка ошибок при скролле
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.closest('.shop-item') || e.target.closest('#shopItemsList')) {
+                e.stopPropagation();
+            }
+        }, { passive: false });
+        
+        // 3. Предотвращаем зум при двойном тапе
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    }
+}
+    
 async function loadShop() {
     try {
+        console.log('🛒 Загрузка магазина для пользователя:', currentUserId);
+        
+        // Обновляем баланс искр
         const shopSparksElement = document.getElementById('shopSparks');
         if (shopSparksElement && currentUser) {
-            shopSparksElement.textContent = `✨ ${currentUser.sparks}`;
+            shopSparksElement.textContent = `✨ ${(currentUser.sparks || 0).toFixed(1)}`;
         }
         
+        // Загружаем товары
         await loadShopItems();
+        
+        // Если открыта вкладка "Мои покупки", загружаем их
+        if (currentShopTab === 'purchased') {
+            await loadPurchasedItems();
+        }
+        
+        console.log('✅ Магазин загружен успешно');
         
     } catch (error) {
         console.error('❌ Ошибка загрузки магазина:', error);
-        const shopSparksElement = document.getElementById('shopSparks');
-        if (shopSparksElement) {
-            shopSparksElement.textContent = `✨ ${(currentUser?.sparks || 0).toFixed(1)}`;
+        
+        // Показываем ошибку пользователю
+        const shopItemsList = document.getElementById('shopItemsList');
+        if (shopItemsList) {
+            shopItemsList.innerHTML = `
+                <div class="error">
+                    <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
+                    <h3 style="margin-bottom: 12px;">Не удалось загрузить магазин</h3>
+                    <p style="color: #718096; margin-bottom: 20px;">
+                        Проверьте подключение к интернету и попробуйте снова
+                    </p>
+                    <button class="btn" onclick="loadShop()">
+                        🔄 Повторить попытку
+                    </button>
+                </div>
+            `;
         }
     }
 }
 
+// ==================== ЗАГРУЗКА ТОВАРОВ МАГАЗИНА ====================
 async function loadShopItems() {
     try {
-        const response = await fetch('/api/webapp/shop/items');
-        const data = await response.json();
+        console.log('🛍️ Начинаем загрузку товаров...');
         
+        // Показываем состояние загрузки
         const shopItemsList = document.getElementById('shopItemsList');
-        shopItemsList.innerHTML = '';
         
-        if (!data || data.length === 0) {
-            shopItemsList.innerHTML = '<div class="info">Пока нет доступных товаров</div>';
+        // Проверяем, существует ли элемент
+        if (!shopItemsList) {
+            console.error('❌ Элемент shopItemsList не найден в DOM');
             return;
         }
         
-        data.forEach(item => {
+        shopItemsList.innerHTML = `
+            <div class="loading" style="text-align: center; padding: 40px;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+                <div>Загрузка товаров...</div>
+                <div style="color: #718096; font-size: 14px; margin-top: 12px;">
+                    Подождите немного
+                </div>
+            </div>
+        `;
+        
+        // Для мобильных - добавляем небольшую задержку для стабильности
+        if (isMobileDevice) {
+            console.log('📱 Мобильное устройство - добавляем задержку');
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Делаем запрос с таймаутом для мобильных
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            console.log('⏰ Таймаут запроса товаров');
+            controller.abort();
+        }, 10000); // 10 секунд таймаут
+        
+        const response = await fetch('/api/webapp/shop/items', {
+            signal: controller.signal,
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Товары загружены:', data?.length || 0, 'шт');
+        
+        // Очищаем список
+        shopItemsList.innerHTML = '';
+        
+        if (!data || data.length === 0) {
+            shopItemsList.innerHTML = `
+                <div class="info" style="text-align: center; padding: 40px;">
+                    <div style="font-size: 64px; margin-bottom: 16px;">🛍️</div>
+                    <h3 style="margin-bottom: 12px;">Пока нет товаров</h3>
+                    <p style="color: #718096; margin-bottom: 20px;">
+                        Новые товары появятся здесь позже
+                    </p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Отображаем товары
+        data.forEach((item, index) => {
             const itemCard = document.createElement('div');
             itemCard.className = 'shop-item';
+            
+            // Добавляем задержку анимации для каждого элемента
+            itemCard.style.animationDelay = `${index * 50}ms`;
+            itemCard.classList.add('slide-in');
             
             const canAfford = currentUser && currentUser.sparks >= item.price;
             const hasPurchased = false;
 
-            // Специальный рендеринг для embed-видео
+            // Проверяем, является ли товар embed-видео
             let previewContent = '';
             
             if (item.type === 'embed' && item.embed_html) {
                 previewContent = `
                     <div style="margin: 12px 0;">
-                        <h4 style="margin-bottom: 8px; color: #4a5568;">🎬 Предпросмотр:</h4>
-                        <div style="background: #f7fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                            ${item.embed_html}
-                        </div>
-                        <div style="color: #718096; font-size: 12px; margin-top: 8px; text-align: center;">
-                            🔒 После покупки вы получите доступ к полной версии
+                        <div style="background: #f7fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 12px;">🎬</div>
+                            <div style="color: #4a5568; font-weight: 600; margin-bottom: 8px;">Видео материал</div>
+                            <div style="color: #718096; font-size: 14px;">
+                                ${item.duration || 'Длительность не указана'}
+                            </div>
                         </div>
                     </div>
                 `;
             } else if (item.preview_url) {
                 previewContent = `
-                    <img src="${item.preview_url}" class="media-preview" 
-                         style="max-height: 150px; object-fit: cover; cursor: pointer;"
-                         onclick="openMediaModal('${item.preview_url}', 'image')">
+                    <div style="margin: 12px 0; text-align: center;">
+                        <img src="${item.preview_url}" 
+                             style="max-height: 150px; max-width: 100%; border-radius: 8px; object-fit: cover; cursor: pointer;"
+                             onclick="openMediaModal('${item.preview_url}', 'image')"
+                             onerror="this.style.display='none'">
+                    </div>
                 `;
             }
             
             itemCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                    <div style="flex: 1;">
-                        <h3 style="margin: 0 0 8px 0;">${item.title}</h3>
-                        <p style="color: #718096; margin-bottom: 8px;">${item.description}</p>
+                    <div style="flex: 1; min-width: 0;">
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; line-height: 1.3; word-break: break-word;">${item.title || 'Без названия'}</h3>
+                        <p style="color: #718096; margin-bottom: 8px; line-height: 1.4; font-size: 14px;">${item.description || ''}</p>
                         <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
-                            <span class="badge badge-info">${getPurchaseTypeIcon(item.type)} ${getPurchaseTypeName(item.type)}</span>
-                            <span class="badge badge-success">${item.price}✨</span>
+                            <span class="badge badge-info" style="font-size: 11px; padding: 4px 8px;">
+                                ${getPurchaseTypeIcon(item.type)} ${getPurchaseTypeName(item.type)}
+                            </span>
+                            <span class="badge badge-success" style="font-size: 11px; padding: 4px 8px;">
+                                ${item.price}✨
+                            </span>
                         </div>
                     </div>
-                    <div style="text-align: right;">
-                        ${!canAfford ? '<div style="color: #f56565; font-size: 11px;">Недостаточно искр</div>' : ''}
-                        ${hasPurchased ? '<div style="color: #48bb78; font-size: 11px;">✅ Куплено</div>' : ''}
+                    <div style="text-align: right; flex-shrink: 0; margin-left: 12px;">
+                        ${!canAfford && !hasPurchased ? 
+                            '<div style="color: #f56565; font-size: 11px; white-space: nowrap;">Недостаточно искр</div>' : 
+                            ''
+                        }
+                        ${hasPurchased ? 
+                            '<div style="color: #48bb78; font-size: 11px; white-space: nowrap;">✅ Куплено</div>' : 
+                            ''
+                        }
                     </div>
                 </div>
                 
                 ${previewContent}
                 
                 ${item.content_text && item.type !== 'embed' ? `
-                    <div class="content-preview" style="max-height: 100px;">
-                        ${item.content_text.substring(0, 150)}${item.content_text.length > 150 ? '...' : ''}
+                    <div style="background: #f7fafc; padding: 12px; border-radius: 8px; margin: 12px 0; max-height: 100px; overflow: hidden;">
+                        <div style="color: #718096; font-size: 13px; line-height: 1.4;">
+                            ${item.content_text.substring(0, 120)}${item.content_text.length > 120 ? '...' : ''}
+                        </div>
                     </div>
                 ` : ''}
                 
                 <button class="btn ${canAfford && !hasPurchased ? 'btn-success' : 'btn-secondary'}" 
                         onclick="purchaseItem(${item.id})" 
                         ${!canAfford || hasPurchased ? 'disabled' : ''}
-                        style="margin-top: 12px;">
-                    ${hasPurchased ? '✅ Куплено' : canAfford ? '🛒 Купить' : '🔒 Недоступно'}
+                        style="margin-top: 12px; width: 100%; padding: 12px;">
+                    ${hasPurchased ? '✅ Куплено' : canAfford ? `🛒 Купить за ${item.price}✨` : '🔒 Недоступно'}
                 </button>
             `;
             
             shopItemsList.appendChild(itemCard);
         });
         
+        console.log('✅ Товары отображены');
+        
     } catch (error) {
         console.error('❌ Ошибка загрузки товаров:', error);
+        
         const shopItemsList = document.getElementById('shopItemsList');
+        if (!shopItemsList) return;
+        
+        let errorMessage = 'Неизвестная ошибка';
+        let showRetry = true;
+        
+        if (error.name === 'AbortError') {
+            errorMessage = 'Запрос превысил время ожидания';
+        } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+            errorMessage = 'Проблема с подключением к интернету';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'Магазин временно недоступен';
+            showRetry = false;
+        } else {
+            errorMessage = error.message;
+        }
+        
         shopItemsList.innerHTML = `
-            <div class="error">
-                Ошибка загрузки товаров: ${error.message}
-                <button class="btn" onclick="loadShopItems()" style="margin-top: 10px;">
-                    🔄 Повторить попытку
-                </button>
+            <div class="error" style="text-align: center; padding: 40px;">
+                <div style="font-size: 64px; margin-bottom: 16px;">😔</div>
+                <h3 style="margin-bottom: 12px; color: #c53030;">Не удалось загрузить товары</h3>
+                <p style="color: #718096; margin-bottom: 8px;">
+                    ${errorMessage}
+                </p>
+                <p style="color: #a0aec0; font-size: 14px; margin-bottom: 20px;">
+                    Попробуйте проверить подключение к интернету
+                </p>
+                ${showRetry ? `
+                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn" onclick="loadShopItems()" style="padding: 12px 24px;">
+                            🔄 Повторить попытку
+                        </button>
+                        <button class="btn btn-secondary" onclick="showScreen('mainScreen')" style="padding: 12px 24px;">
+                            🏠 На главную
+                        </button>
+                    </div>
+                ` : `
+                    <button class="btn" onclick="showScreen('mainScreen')" style="padding: 12px 24px;">
+                        🏠 Вернуться на главную
+                    </button>
+                `}
             </div>
         `;
     }
 }
-
     // Функция для загрузки embed-превью
 async function loadEmbedPreview(itemId) {
     try {
