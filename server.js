@@ -4139,9 +4139,30 @@ app.get('/api/webapp/shop/items/:itemId/embed', (req, res) => {
         }
         
         // Возвращаем embed_html для предпросмотра
+        // Можно добавить ограничение для предпросмотра (например, только часть контента)
+        let previewEmbed = item.embed_html;
+        
+        // Если embed слишком большой, можно обрезать или показать только начало
+        if (previewEmbed && previewEmbed.length > 1000) {
+            // Пример: показываем только первую часть iframe
+            const iframeMatch = previewEmbed.match(/<iframe[^>]*>/i);
+            if (iframeMatch) {
+                previewEmbed = `
+                    <div style="background: #f0f0f0; padding: 40px; text-align: center; border-radius: 12px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🎬</div>
+                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">Видео контент</div>
+                        <div style="color: #666; margin-bottom: 16px;">Доступен после покупки</div>
+                        <div style="background: white; padding: 20px; border-radius: 8px; display: inline-block;">
+                            🔒 Полный доступ после покупки
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
         res.json({
             success: true,
-            embed_html: item.embed_html || '',
+            embed_html: previewEmbed || item.embed_html,
             title: item.title,
             description: item.description,
             is_preview: true // Флаг что это предпросмотр
