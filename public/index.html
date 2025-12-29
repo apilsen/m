@@ -290,7 +290,65 @@
             margin-left: 8px;
             box-shadow: 0 2px 4px rgba(214, 158, 46, 0.3);
         }
-        
+        /* Стили для embed-контента */
+.embed-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 соотношение */
+    height: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+    margin: 16px 0;
+}
+
+.embed-container iframe,
+.embed-container video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.embed-preview {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    margin: 16px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.embed-preview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.embed-locked {
+    position: relative;
+    filter: blur(2px);
+    opacity: 0.8;
+}
+
+.embed-locked::after {
+    content: '🔒';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    background: rgba(0,0,0,0.7);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
         .upload-area {
             border: 2px dashed #667eea; 
             border-radius: 16px; 
@@ -5711,12 +5769,33 @@ function generatePurchasePreview(purchase) {
     }
 }
 
+// В функции showPurchaseDetail добавьте обработку embed-контента:
 function showPurchaseDetail(purchase) {
     console.log('🔍 Показываем детали покупки:', purchase);
     
     const detailContent = document.getElementById('purchaseDetailContent');
     
-    const fullContent = generatePurchaseContent(purchase);
+    let contentSection = '';
+    
+    if (purchase.type === 'embed' && purchase.embed_html) {
+        contentSection = `
+            <div style="margin: 20px 0;">
+                <h4 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: #2d3748;">
+                    🎬 Видео содержание
+                </h4>
+                <div style="background: #f7fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+                    ${purchase.embed_html}
+                </div>
+                ${purchase.content_text ? `
+                    <div class="content-preview" style="margin-top: 16px; max-height: none;">
+                        ${purchase.content_text}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        contentSection = generatePurchaseContent(purchase);
+    }
     
     detailContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 24px;">
@@ -5743,7 +5822,7 @@ function showPurchaseDetail(purchase) {
         
         <div style="margin-bottom: 24px;">
             <h4 style="margin-bottom: 16px; color: #4a5568; text-align: center;">🎁 Содержимое товара</h4>
-            ${fullContent}
+            ${contentSection}
         </div>
     `;
     
